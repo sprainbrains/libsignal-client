@@ -323,7 +323,8 @@ describe('SignalClient', () => {
     const ciphertext = Buffer.alloc(32, 0xfe);
     const pk = SignalClient.PrivateKey.generate();
 
-    const skm = SignalClient.SenderKeyMessage.new(
+    const skm = SignalClient.SenderKeyMessage._new(
+      3,
       distributionId,
       chainId,
       iteration,
@@ -349,7 +350,8 @@ describe('SignalClient', () => {
     const chainKey = Buffer.alloc(32, 0xfe);
     const pk = SignalClient.PrivateKey.generate();
 
-    const skdm = SignalClient.SenderKeyDistributionMessage.new(
+    const skdm = SignalClient.SenderKeyDistributionMessage._new(
+      3,
       distributionId,
       chainId,
       iteration,
@@ -530,7 +532,7 @@ describe('SignalClient', () => {
     const receiverIdentityKey = SignalClient.PrivateKey.generate().getPublicKey();
     const ciphertext = Buffer.from('01020304', 'hex');
 
-    const sm = SignalClient.SignalMessage.new(
+    const sm = SignalClient.SignalMessage._new(
       messageVersion,
       macKey,
       senderRatchetKey,
@@ -556,7 +558,7 @@ describe('SignalClient', () => {
     const baseKey = SignalClient.PrivateKey.generate().getPublicKey();
     const identityKey = SignalClient.PrivateKey.generate().getPublicKey();
 
-    const pkm = SignalClient.PreKeySignalMessage.new(
+    const pkm = SignalClient.PreKeySignalMessage._new(
       messageVersion,
       registrationId,
       preKeyId,
@@ -702,6 +704,155 @@ describe('SignalClient', () => {
       assert(session.hasCurrentState());
       session.archiveCurrentState();
       assert(!session.hasCurrentState());
+    }
+  });
+  it('handles duplicated messages', async () => {
+    const aKeys = new InMemoryIdentityKeyStore();
+    const bKeys = new InMemoryIdentityKeyStore();
+
+    const aSess = new InMemorySessionStore();
+    const bSess = new InMemorySessionStore();
+
+    const bPreK = new InMemoryPreKeyStore();
+    const bSPreK = new InMemorySignedPreKeyStore();
+
+    const bPreKey = SignalClient.PrivateKey.generate();
+    const bSPreKey = SignalClient.PrivateKey.generate();
+
+    const bIdentityKey = await bKeys.getIdentityKey();
+    const bSignedPreKeySig = bIdentityKey.sign(
+      bSPreKey.getPublicKey().serialize()
+    );
+
+    const aAddress = SignalClient.ProtocolAddress.new('+14151111111', 1);
+    const bAddress = SignalClient.ProtocolAddress.new('+19192222222', 1);
+
+    const bRegistrationId = await bKeys.getLocalRegistrationId();
+    const bPreKeyId = 31337;
+    const bSignedPreKeyId = 22;
+
+    const bPreKeyBundle = SignalClient.PreKeyBundle.new(
+      bRegistrationId,
+      bAddress.deviceId(),
+      bPreKeyId,
+      bPreKey.getPublicKey(),
+      bSignedPreKeyId,
+      bSPreKey.getPublicKey(),
+      bSignedPreKeySig,
+      bIdentityKey.getPublicKey()
+    );
+
+    const bPreKeyRecord = SignalClient.PreKeyRecord.new(
+      bPreKeyId,
+      bPreKey.getPublicKey(),
+      bPreKey
+    );
+    bPreK.savePreKey(bPreKeyId, bPreKeyRecord);
+
+    const bSPreKeyRecord = SignalClient.SignedPreKeyRecord.new(
+      bSignedPreKeyId,
+      42, // timestamp
+      bSPreKey.getPublicKey(),
+      bSPreKey,
+      bSignedPreKeySig
+    );
+    bSPreK.saveSignedPreKey(bSignedPreKeyId, bSPreKeyRecord);
+
+    await SignalClient.processPreKeyBundle(
+      bPreKeyBundle,
+      bAddress,
+      aSess,
+      aKeys
+    );
+    const aMessage = Buffer.from('Greetings hoo-man', 'utf8');
+
+    const aCiphertext = await SignalClient.signalEncrypt(
+      aMessage,
+      bAddress,
+      aSess,
+      aKeys
+    );
+
+    assert.deepEqual(
+      aCiphertext.type(),
+      SignalClient.CiphertextMessageType.PreKey
+    );
+
+    const aCiphertextR = SignalClient.PreKeySignalMessage.deserialize(
+      aCiphertext.serialize()
+    );
+
+    const bDPlaintext = await SignalClient.signalDecryptPreKey(
+      aCiphertextR,
+      aAddress,
+      bSess,
+      bKeys,
+      bPreK,
+      bSPreK
+    );
+    assert.deepEqual(bDPlaintext, aMessage);
+
+    try {
+      await SignalClient.signalDecryptPreKey(
+        aCiphertextR,
+        aAddress,
+        bSess,
+        bKeys,
+        bPreK,
+        bSPreK
+      );
+      assert.fail();
+    } catch (e) {
+      assert.instanceOf(e, Error);
+      assert.instanceOf(e, SignalClient.SignalClientErrorBase);
+      const err = e as SignalClient.SignalClientError;
+      assert.equal(err.name, 'DuplicatedMessage');
+      assert.equal(err.code, SignalClient.ErrorCode.DuplicatedMessage);
+      assert.equal(err.operation, 'SessionCipher_DecryptPreKeySignalMessage'); // the Rust entry point
+      assert.exists(err.stack); // Make sure we're still getting the benefits of Error.
+    }
+
+    const bMessage = Buffer.from(
+      'Sometimes the only thing more dangerous than a question is an answer.',
+      'utf8'
+    );
+
+    const bCiphertext = await SignalClient.signalEncrypt(
+      bMessage,
+      aAddress,
+      bSess,
+      bKeys
+    );
+
+    assert.deepEqual(
+      bCiphertext.type(),
+      SignalClient.CiphertextMessageType.Whisper
+    );
+
+    const bCiphertextR = SignalClient.SignalMessage.deserialize(
+      bCiphertext.serialize()
+    );
+
+    const aDPlaintext = await SignalClient.signalDecrypt(
+      bCiphertextR,
+      bAddress,
+      aSess,
+      aKeys
+    );
+
+    assert.deepEqual(aDPlaintext, bMessage);
+
+    try {
+      await SignalClient.signalDecrypt(bCiphertextR, bAddress, aSess, aKeys);
+      assert.fail();
+    } catch (e) {
+      assert.instanceOf(e, Error);
+      assert.instanceOf(e, SignalClient.SignalClientErrorBase);
+      const err = e as SignalClient.SignalClientError;
+      assert.equal(err.name, 'DuplicatedMessage');
+      assert.equal(err.code, SignalClient.ErrorCode.DuplicatedMessage);
+      assert.equal(err.operation, 'SessionCipher_DecryptSignalMessage'); // the Rust entry point
+      assert.exists(err.stack); // Make sure we're still getting the benefits of Error.
     }
   });
   describe('SealedSender', () => {
