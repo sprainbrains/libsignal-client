@@ -15,7 +15,7 @@ name = "signal_ffi"
 crate-type = ["staticlib"]
 
 [features]
-nightly = ["libsignal-protocol/nightly"]
+nightly = ["libsignal-protocol/nightly", "signal-crypto/nightly"]
 
 [dependencies]
 libsignal-protocol = { path = "../../protocol" }

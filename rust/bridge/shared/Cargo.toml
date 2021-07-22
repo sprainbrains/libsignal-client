@@ -35,4 +35,4 @@ signal-neon-futures = { path = "../node/futures", optional = true }
 ffi = ["libc", "libsignal-bridge-macros/ffi"]
 jni = ["jni_crate", "libsignal-bridge-macros/jni"]
 node = ["neon", "linkme", "signal-neon-futures", "libsignal-bridge-macros/node"]
-nightly = ["libsignal-protocol/nightly"]
+nightly = ["libsignal-protocol/nightly", "signal-crypto/nightly", "aes-gcm-siv/armv8"]
