@@ -93,17 +93,14 @@ impl SenderChainKey {
     }
 
     pub fn next(&self) -> Result<SenderChainKey> {
-        Ok(SenderChainKey::new(
+        SenderChainKey::new(
             self.iteration + 1,
             self.get_derivative(Self::CHAIN_KEY_SEED)?,
-        )?)
+        )
     }
 
     pub fn sender_message_key(&self) -> Result<SenderMessageKey> {
-        Ok(SenderMessageKey::new(
-            self.iteration,
-            self.get_derivative(Self::MESSAGE_KEY_SEED)?,
-        )?)
+        SenderMessageKey::new(self.iteration, self.get_derivative(Self::MESSAGE_KEY_SEED)?)
     }
 
     fn get_derivative(&self, label: u8) -> Result<Vec<u8>> {
@@ -164,9 +161,7 @@ impl SenderKeyState {
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let mut buf = vec![];
-        self.state.encode(&mut buf)?;
-        Ok(buf)
+        Ok(self.state.encode_to_vec())
     }
 
     pub fn message_version(&self) -> Result<u32> {
@@ -362,8 +357,6 @@ impl SenderKeyRecord {
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let mut buf = vec![];
-        self.as_protobuf()?.encode(&mut buf)?;
-        Ok(buf)
+        Ok(self.as_protobuf()?.encode_to_vec())
     }
 }

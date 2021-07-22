@@ -5,7 +5,7 @@
 
 mod support;
 
-use futures::executor::block_on;
+use futures_util::FutureExt;
 use libsignal_protocol::*;
 use rand::rngs::OsRng;
 use std::convert::TryFrom;
@@ -14,7 +14,7 @@ use support::*;
 #[test]
 #[allow(clippy::eval_order_dependence)]
 fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -205,7 +205,7 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
             SignalProtocolError::UntrustedIdentity(a) if a == alice_address
         ));
 
-        assert_eq!(
+        assert!(
             bob_store
                 .save_identity(
                     &alice_address,
@@ -215,8 +215,7 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
                         .identity_key(),
                     None,
                 )
-                .await?,
-            true
+                .await?
         );
 
         let decrypted = decrypt(&mut bob_store, &alice_address, &outgoing_message).await?;
@@ -251,14 +250,16 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
         .is_err());
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 #[ignore = "slow to run locally"]
 #[allow(clippy::eval_order_dependence)]
 fn chain_jump_over_limit() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -338,14 +339,16 @@ fn chain_jump_over_limit() -> Result<(), SignalProtocolError> {
             .await
             .is_err());
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 #[ignore = "slow to run locally"]
 #[allow(clippy::eval_order_dependence)]
 fn chain_jump_over_limit_with_self() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let a1_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -433,13 +436,15 @@ fn chain_jump_over_limit_with_self() -> Result<(), SignalProtocolError> {
         );
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 #[allow(clippy::eval_order_dependence)]
 fn test_bad_signed_pre_key_signature() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
@@ -510,7 +515,9 @@ fn test_bad_signed_pre_key_signature() -> Result<(), SignalProtocolError> {
         .await?;
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 // testRepeatBundleMessageV2 cannot be represented
@@ -518,7 +525,7 @@ fn test_bad_signed_pre_key_signature() -> Result<(), SignalProtocolError> {
 #[test]
 #[allow(clippy::eval_order_dependence)]
 fn repeat_bundle_message_v3() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
         let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
 
@@ -644,13 +651,15 @@ fn repeat_bundle_message_v3() -> Result<(), SignalProtocolError> {
         );
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 #[allow(clippy::eval_order_dependence)]
 fn bad_message_bundle() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -765,13 +774,15 @@ fn bad_message_bundle() -> Result<(), SignalProtocolError> {
         ));
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 #[allow(clippy::eval_order_dependence)]
 fn optional_one_time_prekey() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
         let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
 
@@ -853,7 +864,9 @@ fn optional_one_time_prekey() -> Result<(), SignalProtocolError> {
         );
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
@@ -865,7 +878,7 @@ fn basic_session_v3() -> Result<(), SignalProtocolError> {
 
 #[test]
 fn message_key_limits() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let (alice_session_record, bob_session_record) = initialize_sessions_v3()?;
 
         let alice_address = ProtocolAddress::new("+14159999999".to_owned(), 1);
@@ -917,7 +930,9 @@ fn message_key_limits() -> Result<(), SignalProtocolError> {
             SignalProtocolError::DuplicatedMessage(2300, 5)
         ));
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[allow(clippy::needless_range_loop)]
@@ -925,7 +940,7 @@ fn run_session_interaction(
     alice_session: SessionRecord,
     bob_session: SessionRecord,
 ) -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         use rand::seq::SliceRandom;
 
         let alice_address = ProtocolAddress::new("+14159999999".to_owned(), 1);
@@ -1016,7 +1031,9 @@ fn run_session_interaction(
         }
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 async fn run_interaction(
@@ -1129,7 +1146,7 @@ async fn is_session_id_equal(
 
 #[test]
 fn basic_simultaneous_initiate() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -1173,9 +1190,8 @@ fn basic_simultaneous_initiate() -> Result<(), SignalProtocolError> {
             CiphertextMessageType::PreKey
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?
         );
 
         let alice_plaintext = decrypt(
@@ -1221,9 +1237,8 @@ fn basic_simultaneous_initiate() -> Result<(), SignalProtocolError> {
             3
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?
         );
 
         let alice_response = encrypt(&mut alice_store, &bob_address, "nice to see you").await?;
@@ -1244,10 +1259,7 @@ fn basic_simultaneous_initiate() -> Result<(), SignalProtocolError> {
             "nice to see you"
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            true
-        );
+        assert!(is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?);
 
         let bob_response = encrypt(&mut bob_store, &alice_address, "you as well").await?;
 
@@ -1264,18 +1276,17 @@ fn basic_simultaneous_initiate() -> Result<(), SignalProtocolError> {
             "you as well"
         );
 
-        assert_eq!(
-            is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?,
-            true
-        );
+        assert!(is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?);
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 fn simultaneous_initiate_with_lossage() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -1319,9 +1330,8 @@ fn simultaneous_initiate_with_lossage() -> Result<(), SignalProtocolError> {
             CiphertextMessageType::PreKey
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?
         );
 
         let bob_plaintext = decrypt(
@@ -1371,10 +1381,7 @@ fn simultaneous_initiate_with_lossage() -> Result<(), SignalProtocolError> {
             "nice to see you"
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            true
-        );
+        assert!(is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?);
 
         let bob_response = encrypt(&mut bob_store, &alice_address, "you as well").await?;
 
@@ -1391,18 +1398,17 @@ fn simultaneous_initiate_with_lossage() -> Result<(), SignalProtocolError> {
             "you as well"
         );
 
-        assert_eq!(
-            is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?,
-            true
-        );
+        assert!(is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?);
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 fn simultaneous_initiate_lost_message() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -1446,9 +1452,8 @@ fn simultaneous_initiate_lost_message() -> Result<(), SignalProtocolError> {
             CiphertextMessageType::PreKey
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?
         );
 
         let alice_plaintext = decrypt(
@@ -1494,9 +1499,8 @@ fn simultaneous_initiate_lost_message() -> Result<(), SignalProtocolError> {
             3
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?
         );
 
         let alice_response = encrypt(&mut alice_store, &bob_address, "nice to see you").await?;
@@ -1506,9 +1510,8 @@ fn simultaneous_initiate_lost_message() -> Result<(), SignalProtocolError> {
             CiphertextMessageType::Whisper
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?
         );
 
         let bob_response = encrypt(&mut bob_store, &alice_address, "you as well").await?;
@@ -1526,18 +1529,17 @@ fn simultaneous_initiate_lost_message() -> Result<(), SignalProtocolError> {
             "you as well"
         );
 
-        assert_eq!(
-            is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?,
-            true
-        );
+        assert!(is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?);
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 fn simultaneous_initiate_repeated_messages() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -1582,9 +1584,9 @@ fn simultaneous_initiate_repeated_messages() -> Result<(), SignalProtocolError> 
                 CiphertextMessageType::PreKey
             );
 
-            assert_eq!(
-                is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-                false
+            assert!(
+                !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address)
+                    .await?
             );
 
             let alice_plaintext = decrypt(
@@ -1630,9 +1632,9 @@ fn simultaneous_initiate_repeated_messages() -> Result<(), SignalProtocolError> 
                 3
             );
 
-            assert_eq!(
-                is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-                false
+            assert!(
+                !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address)
+                    .await?
             );
         }
 
@@ -1649,9 +1651,9 @@ fn simultaneous_initiate_repeated_messages() -> Result<(), SignalProtocolError> 
                 CiphertextMessageType::Whisper
             );
 
-            assert_eq!(
-                is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-                false
+            assert!(
+                !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address)
+                    .await?
             );
 
             let alice_plaintext = decrypt(
@@ -1697,9 +1699,9 @@ fn simultaneous_initiate_repeated_messages() -> Result<(), SignalProtocolError> 
                 3
             );
 
-            assert_eq!(
-                is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-                false
+            assert!(
+                !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address)
+                    .await?
             );
         }
 
@@ -1710,9 +1712,8 @@ fn simultaneous_initiate_repeated_messages() -> Result<(), SignalProtocolError> 
             CiphertextMessageType::Whisper
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?
         );
 
         let bob_response = encrypt(&mut bob_store, &alice_address, "you as well").await?;
@@ -1730,18 +1731,17 @@ fn simultaneous_initiate_repeated_messages() -> Result<(), SignalProtocolError> 
             "you as well"
         );
 
-        assert_eq!(
-            is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?,
-            true
-        );
+        assert!(is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?);
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }
 
 #[test]
 fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalProtocolError> {
-    block_on(async {
+    async {
         let mut csprng = OsRng;
 
         let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
@@ -1800,9 +1800,9 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
                 CiphertextMessageType::PreKey
             );
 
-            assert_eq!(
-                is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-                false
+            assert!(
+                !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address)
+                    .await?
             );
 
             let alice_plaintext = decrypt(
@@ -1848,9 +1848,9 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
                 3
             );
 
-            assert_eq!(
-                is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-                false
+            assert!(
+                !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address)
+                    .await?
             );
         }
 
@@ -1867,9 +1867,9 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
                 CiphertextMessageType::Whisper
             );
 
-            assert_eq!(
-                is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-                false
+            assert!(
+                !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address)
+                    .await?
             );
 
             let alice_plaintext = decrypt(
@@ -1915,9 +1915,9 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
                 3
             );
 
-            assert_eq!(
-                is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-                false
+            assert!(
+                !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address)
+                    .await?
             );
         }
 
@@ -1928,9 +1928,8 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
             CiphertextMessageType::Whisper
         );
 
-        assert_eq!(
-            is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&alice_store, &alice_address, &bob_store, &bob_address).await?
         );
 
         let bob_response = encrypt(&mut bob_store, &alice_address, "you as well").await?;
@@ -1948,10 +1947,7 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
             "you as well"
         );
 
-        assert_eq!(
-            is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?,
-            true
-        );
+        assert!(is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?);
 
         let blast_from_the_past = decrypt(
             &mut bob_store,
@@ -1966,9 +1962,8 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
             "it was so long ago"
         );
 
-        assert_eq!(
-            is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?,
-            false
+        assert!(
+            !is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?
         );
 
         let bob_response = encrypt(&mut bob_store, &alice_address, "so it was").await?;
@@ -1986,11 +1981,10 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
             "so it was"
         );
 
-        assert_eq!(
-            is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?,
-            true
-        );
+        assert!(is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?);
 
         Ok(())
-    })
+    }
+    .now_or_never()
+    .expect("sync")
 }

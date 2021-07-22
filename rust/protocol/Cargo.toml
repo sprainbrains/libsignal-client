@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2020 Signal Messenger, LLC.
+# Copyright (C) 2020-2021 Signal Messenger, LLC.
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 
@@ -12,14 +12,13 @@ license = "AGPL-3.0-only"
 repository = "https://github.com/signalapp/libsignal-client"
 
 [dependencies]
-signal-crypto = { path = "../crypto" }
-aes = "0.6"
-ctr = "0.6"
+aes = { version = "0.7.4", features = ["armv8", "ctr"] }
+aes-gcm-siv = { version = "0.10.1", features = ["armv8"] }
 arrayref = "0.3.6"
 async-trait = "0.1.41"
-block-modes = "0.7"
+block-modes = "0.8"
 hmac = "0.9.0"
-prost = "0.7"
+prost = "0.8"
 rand = "0.7.3"
 sha2 = "0.9"
 subtle = "2.2.3"
@@ -40,14 +39,14 @@ default = ["u64_backend"]
 u32_backend = ["curve25519-dalek/u32_backend"]
 u64_backend = ["curve25519-dalek/u64_backend"]
 simd_backend = ["curve25519-dalek/simd_backend"]
-nightly = ["curve25519-dalek/nightly", "signal-crypto/nightly"]
+nightly = ["curve25519-dalek/nightly"]
 
 [dev-dependencies]
 criterion = "0.3"
-futures = "0.3.7"
+futures-util = "0.3.7"
 
 [build-dependencies]
-prost-build = "0.7"
+prost-build = "0.8"
 
 [[bench]]
 name = "session"

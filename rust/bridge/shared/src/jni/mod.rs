@@ -64,8 +64,6 @@ pub use error::*;
 mod storage;
 pub use storage::*;
 
-pub use crate::support::expect_ready;
-
 /// The type of boxed Rust values, as surfaced in JavaScript.
 pub type ObjectHandle = jlong;
 
@@ -88,9 +86,9 @@ fn throw_error(env: &JNIEnv, error: SignalJniError) {
             // The usual way to write this code would be to match on the result of Error::downcast.
             // However, the "failure" result, which is intended to return the original type back,
             // only supports Send and Sync as additional traits. For anything else, we have to test first.
-            if Error::is::<ThrownException>(&*exception) {
+            if <dyn Error>::is::<ThrownException>(&*exception) {
                 let exception =
-                    Error::downcast::<ThrownException>(exception).expect("just checked");
+                    <dyn Error>::downcast::<ThrownException>(exception).expect("just checked");
                 if let Err(e) = env.throw(exception.as_obj()) {
                     log::error!("failed to rethrow exception from {}: {}", callback, e);
                 }
@@ -133,6 +131,49 @@ fn throw_error(env: &JNIEnv, error: SignalJniError) {
             return;
         }
 
+        SignalJniError::Signal(SignalProtocolError::SealedSenderSelfSend) => {
+            let throwable = env.new_object(
+                "org/signal/libsignal/metadata/SelfSendException",
+                jni_signature!(() -> void),
+                &[],
+            );
+
+            match throwable {
+                Err(e) => log::error!("failed to create exception for {}: {}", error, e),
+                Ok(throwable) => {
+                    let result = env.throw(JThrowable::from(throwable));
+                    if let Err(e) = result {
+                        log::error!("failed to throw exception for {}: {}", error, e);
+                    }
+                }
+            }
+            return;
+        }
+
+        SignalJniError::UnexpectedPanic(_)
+        | SignalJniError::BadJniParameter(_)
+        | SignalJniError::UnexpectedJniResultType(_, _) => {
+            // java.lang.AssertionError has a slightly different signature.
+            let throwable = env.new_string(error.to_string()).and_then(|message| {
+                env.new_object(
+                    "java/lang/AssertionError",
+                    jni_signature!((java.lang.Object) -> void),
+                    &[JValue::from(message)],
+                )
+            });
+
+            match throwable {
+                Err(e) => log::error!("failed to create exception for {}: {}", error, e),
+                Ok(throwable) => {
+                    let result = env.throw(JThrowable::from(throwable));
+                    if let Err(e) = result {
+                        log::error!("failed to throw exception for {}: {}", error, e);
+                    }
+                }
+            }
+            return;
+        }
+
         e => e,
     };
 
@@ -152,10 +193,6 @@ fn throw_error(env: &JNIEnv, error: SignalJniError) {
         | SignalJniError::SignalCrypto(SignalCryptoError::InvalidNonceSize) => {
             "java/lang/IllegalArgumentException"
         }
-
-        SignalJniError::UnexpectedPanic(_)
-        | SignalJniError::BadJniParameter(_)
-        | SignalJniError::UnexpectedJniResultType(_, _) => "java/lang/AssertionError",
 
         SignalJniError::IntegerOverflow(_)
         | SignalJniError::Jni(_)
@@ -213,18 +250,18 @@ fn throw_error(env: &JNIEnv, error: SignalJniError) {
             "org/whispersystems/libsignal/LegacyMessageException"
         }
 
-        SignalJniError::Signal(SignalProtocolError::SealedSenderSelfSend) => {
-            "org/signal/libsignal/metadata/SelfSendException"
-        }
-
-        SignalJniError::Signal(SignalProtocolError::UntrustedIdentity(_))
-        | SignalJniError::Signal(SignalProtocolError::FingerprintVersionMismatch(_, _)) => {
-            unreachable!("already handled in prior match")
-        }
-
         SignalJniError::Signal(SignalProtocolError::FingerprintIdentifierMismatch)
         | SignalJniError::Signal(SignalProtocolError::FingerprintParsingError) => {
             "org/whispersystems/libsignal/fingerprint/FingerprintParsingException"
+        }
+
+        SignalJniError::Signal(SignalProtocolError::SealedSenderSelfSend)
+        | SignalJniError::Signal(SignalProtocolError::UntrustedIdentity(_))
+        | SignalJniError::Signal(SignalProtocolError::FingerprintVersionMismatch(_, _))
+        | SignalJniError::UnexpectedPanic(_)
+        | SignalJniError::BadJniParameter(_)
+        | SignalJniError::UnexpectedJniResultType(_, _) => {
+            unreachable!("already handled in prior match")
         }
     };
 
@@ -431,7 +468,7 @@ pub fn get_object_with_native_handle<T: 'static + Clone>(
     callback_fn: &'static str,
 ) -> Result<Option<T>, SignalJniError> {
     let obj: JObject =
-        call_method_checked(env, store_obj, callback_fn, callback_sig, &callback_args)?;
+        call_method_checked(env, store_obj, callback_fn, callback_sig, callback_args)?;
     if obj.is_null() {
         return Ok(None);
     }
@@ -457,7 +494,7 @@ pub fn get_object_with_serialization(
     callback_fn: &'static str,
 ) -> Result<Option<Vec<u8>>, SignalJniError> {
     let obj: JObject =
-        call_method_checked(env, store_obj, callback_fn, callback_sig, &callback_args)?;
+        call_method_checked(env, store_obj, callback_fn, callback_sig, callback_args)?;
 
     if obj.is_null() {
         return Ok(None);
@@ -478,6 +515,7 @@ pub enum CiphertextMessageRef<'a> {
     SignalMessage(&'a SignalMessage),
     PreKeySignalMessage(&'a PreKeySignalMessage),
     SenderKeyMessage(&'a SenderKeyMessage),
+    PlaintextContent(&'a PlaintextContent),
 }
 
 impl<'a> CiphertextMessageRef<'a> {
@@ -486,6 +524,7 @@ impl<'a> CiphertextMessageRef<'a> {
             CiphertextMessageRef::SignalMessage(_) => CiphertextMessageType::Whisper,
             CiphertextMessageRef::PreKeySignalMessage(_) => CiphertextMessageType::PreKey,
             CiphertextMessageRef::SenderKeyMessage(_) => CiphertextMessageType::SenderKey,
+            CiphertextMessageRef::PlaintextContent(_) => CiphertextMessageType::Plaintext,
         }
     }
 
@@ -494,6 +533,7 @@ impl<'a> CiphertextMessageRef<'a> {
             CiphertextMessageRef::SignalMessage(x) => x.serialized(),
             CiphertextMessageRef::PreKeySignalMessage(x) => x.serialized(),
             CiphertextMessageRef::SenderKeyMessage(x) => x.serialized(),
+            CiphertextMessageRef::PlaintextContent(x) => x.serialized(),
         }
     }
 }

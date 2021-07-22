@@ -21,7 +21,7 @@ SignalClient.initLogger(
 );
 
 class InMemorySessionStore extends SignalClient.SessionStore {
-  private state = new Map();
+  private state = new Map<string, Buffer>();
   async saveSession(
     name: SignalClient.ProtocolAddress,
     record: SignalClient.SessionRecord
@@ -33,13 +33,26 @@ class InMemorySessionStore extends SignalClient.SessionStore {
     name: SignalClient.ProtocolAddress
   ): Promise<SignalClient.SessionRecord | null> {
     const idx = name.name() + '::' + name.deviceId();
-    if (this.state.has(idx)) {
+    const serialized = this.state.get(idx);
+    if (serialized) {
       return Promise.resolve(
-        SignalClient.SessionRecord.deserialize(this.state.get(idx))
+        SignalClient.SessionRecord.deserialize(serialized)
       );
     } else {
       return Promise.resolve(null);
     }
+  }
+  async getExistingSessions(
+    addresses: SignalClient.ProtocolAddress[]
+  ): Promise<SignalClient.SessionRecord[]> {
+    return addresses.map(address => {
+      const idx = address.name() + '::' + address.deviceId();
+      const serialized = this.state.get(idx);
+      if (!serialized) {
+        throw 'no session for ' + idx;
+      }
+      return SignalClient.SessionRecord.deserialize(serialized);
+    });
   }
 }
 
@@ -702,8 +715,21 @@ describe('SignalClient', () => {
       assert.deepEqual(session.localRegistrationId(), 5);
       assert.deepEqual(session.remoteRegistrationId(), 5);
       assert(session.hasCurrentState());
+      assert(
+        !session.currentRatchetKeyMatches(
+          SignalClient.PrivateKey.generate().getPublicKey()
+        )
+      );
+
       session.archiveCurrentState();
       assert(!session.hasCurrentState());
+      assert(
+        !session.currentRatchetKeyMatches(
+          SignalClient.PrivateKey.generate().getPublicKey()
+        )
+      );
+    } else {
+      assert.fail('no session found');
     }
   });
   it('handles duplicated messages', async () => {
@@ -986,8 +1012,8 @@ describe('SignalClient', () => {
       for (const hint of [
         200,
         SignalClient.ContentHint.Default,
-        SignalClient.ContentHint.Supplementary,
-        SignalClient.ContentHint.Retry,
+        SignalClient.ContentHint.Resendable,
+        SignalClient.ContentHint.Implicit,
       ]) {
         const content = SignalClient.UnidentifiedSenderMessageContent.new(
           innerMessage,
@@ -1244,14 +1270,15 @@ describe('SignalClient', () => {
       const aUsmc = SignalClient.UnidentifiedSenderMessageContent.new(
         aCtext,
         senderCert,
-        SignalClient.ContentHint.Supplementary,
+        SignalClient.ContentHint.Implicit,
         Buffer.from([42])
       );
 
       const aSealedSenderMessage = await SignalClient.sealedSenderMultiRecipientEncrypt(
         aUsmc,
         [bAddress],
-        aKeys
+        aKeys,
+        aSess
       );
 
       const bSealedSenderMessage = SignalClient.sealedSenderMultiRecipientMessageForSingleRecipient(
@@ -1266,10 +1293,7 @@ describe('SignalClient', () => {
       assert.deepEqual(bUsmc.senderCertificate().senderE164(), aE164);
       assert.deepEqual(bUsmc.senderCertificate().senderUuid(), aUuid);
       assert.deepEqual(bUsmc.senderCertificate().senderDeviceId(), aDeviceId);
-      assert.deepEqual(
-        bUsmc.contentHint(),
-        SignalClient.ContentHint.Supplementary
-      );
+      assert.deepEqual(bUsmc.contentHint(), SignalClient.ContentHint.Implicit);
       assert.deepEqual(bUsmc.groupId(), Buffer.from([42]));
 
       const bPtext = await SignalClient.groupDecrypt(
@@ -1281,6 +1305,173 @@ describe('SignalClient', () => {
       assert.deepEqual(message, bPtext);
     });
   });
+
+  it('DecryptionMessageError', async () => {
+    const aKeys = new InMemoryIdentityKeyStore();
+    const bKeys = new InMemoryIdentityKeyStore();
+
+    const aSess = new InMemorySessionStore();
+    const bSess = new InMemorySessionStore();
+
+    const bPreK = new InMemoryPreKeyStore();
+    const bSPreK = new InMemorySignedPreKeyStore();
+
+    const bPreKey = SignalClient.PrivateKey.generate();
+    const bSPreKey = SignalClient.PrivateKey.generate();
+
+    const aIdentityKey = await aKeys.getIdentityKey();
+    const bIdentityKey = await bKeys.getIdentityKey();
+
+    const aE164 = '+14151111111';
+
+    const aDeviceId = 1;
+    const bDeviceId = 3;
+
+    const aUuid = '9d0652a3-dcc3-4d11-975f-74d61598733f';
+    const bUuid = '796abedb-ca4e-4f18-8803-1fde5b921f9f';
+
+    const trustRoot = SignalClient.PrivateKey.generate();
+    const serverKey = SignalClient.PrivateKey.generate();
+
+    const serverCert = SignalClient.ServerCertificate.new(
+      1,
+      serverKey.getPublicKey(),
+      trustRoot
+    );
+
+    const expires = 1605722925;
+    const senderCert = SignalClient.SenderCertificate.new(
+      aUuid,
+      aE164,
+      aDeviceId,
+      aIdentityKey.getPublicKey(),
+      expires,
+      serverCert,
+      serverKey
+    );
+
+    const bRegistrationId = await bKeys.getLocalRegistrationId();
+    const bPreKeyId = 31337;
+    const bSignedPreKeyId = 22;
+
+    const bSignedPreKeySig = bIdentityKey.sign(
+      bSPreKey.getPublicKey().serialize()
+    );
+
+    const bPreKeyBundle = SignalClient.PreKeyBundle.new(
+      bRegistrationId,
+      bDeviceId,
+      bPreKeyId,
+      bPreKey.getPublicKey(),
+      bSignedPreKeyId,
+      bSPreKey.getPublicKey(),
+      bSignedPreKeySig,
+      bIdentityKey.getPublicKey()
+    );
+
+    const bPreKeyRecord = SignalClient.PreKeyRecord.new(
+      bPreKeyId,
+      bPreKey.getPublicKey(),
+      bPreKey
+    );
+    bPreK.savePreKey(bPreKeyId, bPreKeyRecord);
+
+    const bSPreKeyRecord = SignalClient.SignedPreKeyRecord.new(
+      bSignedPreKeyId,
+      42, // timestamp
+      bSPreKey.getPublicKey(),
+      bSPreKey,
+      bSignedPreKeySig
+    );
+    bSPreK.saveSignedPreKey(bSignedPreKeyId, bSPreKeyRecord);
+
+    // Set up the session with a message from A to B.
+
+    const bAddress = SignalClient.ProtocolAddress.new(bUuid, bDeviceId);
+    await SignalClient.processPreKeyBundle(
+      bPreKeyBundle,
+      bAddress,
+      aSess,
+      aKeys
+    );
+
+    const aPlaintext = Buffer.from('hi there', 'utf8');
+
+    const aCiphertext = await SignalClient.sealedSenderEncryptMessage(
+      aPlaintext,
+      bAddress,
+      senderCert,
+      aSess,
+      aKeys
+    );
+
+    await SignalClient.sealedSenderDecryptMessage(
+      aCiphertext,
+      trustRoot.getPublicKey(),
+      43, // timestamp,
+      null,
+      bUuid,
+      bDeviceId,
+      bSess,
+      bKeys,
+      bPreK,
+      bSPreK
+    );
+
+    // Pretend to send a message from B back to A that "fails".
+    const aAddress = SignalClient.ProtocolAddress.new(aUuid, aDeviceId);
+    const bCiphertext = await SignalClient.signalEncrypt(
+      Buffer.from('reply', 'utf8'),
+      aAddress,
+      bSess,
+      bKeys
+    );
+
+    const errorMessage = SignalClient.DecryptionErrorMessage.forOriginal(
+      bCiphertext.serialize(),
+      bCiphertext.type(),
+      45, // timestamp
+      bAddress.deviceId()
+    );
+    const errorContent = SignalClient.PlaintextContent.from(errorMessage);
+    const errorUSMC = SignalClient.UnidentifiedSenderMessageContent.new(
+      SignalClient.CiphertextMessage.from(errorContent),
+      senderCert,
+      SignalClient.ContentHint.Implicit,
+      null // group ID
+    );
+    const errorSealedSenderMessage = await SignalClient.sealedSenderEncrypt(
+      errorUSMC,
+      bAddress,
+      aKeys
+    );
+
+    const bErrorUSMC = await SignalClient.sealedSenderDecryptToUsmc(
+      errorSealedSenderMessage,
+      bKeys
+    );
+    assert.equal(
+      bErrorUSMC.msgType(),
+      SignalClient.CiphertextMessageType.Plaintext
+    );
+    const bErrorContent = SignalClient.PlaintextContent.deserialize(
+      bErrorUSMC.contents()
+    );
+    const bErrorMessage = SignalClient.DecryptionErrorMessage.extractFromSerializedBody(
+      bErrorContent.body()
+    );
+    assert.equal(bErrorMessage.timestamp(), 45);
+    assert.equal(bErrorMessage.deviceId(), bAddress.deviceId());
+
+    const bSessionWithA = await bSess.getSession(aAddress);
+    assert(
+      bSessionWithA?.currentRatchetKeyMatches(
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        bErrorMessage.ratchetKey()!
+      )
+    );
+  });
+
   it('AES-GCM-SIV test vector', () => {
     // RFC 8452, appendix C.2
     const key = Buffer.from(

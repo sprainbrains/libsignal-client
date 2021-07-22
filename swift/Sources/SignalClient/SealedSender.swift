@@ -41,11 +41,11 @@ public class UnidentifiedSenderMessageContent: ClonableHandleOwner {
         public static var `default`: Self {
             return Self(SignalContentHint_Default)
         }
-        public static var supplementary: Self {
-            return Self(SignalContentHint_Supplementary)
+        public static var resendable: Self {
+            return Self(SignalContentHint_Resendable)
         }
-        public static var retry: Self {
-            return Self(SignalContentHint_Retry)
+        public static var implicit: Self {
+            return Self(SignalContentHint_Implicit)
         }
     }
 
@@ -150,13 +150,17 @@ public func sealedSenderEncrypt(_ content: UnidentifiedSenderMessageContent,
 public func sealedSenderMultiRecipientEncrypt(_ content: UnidentifiedSenderMessageContent,
                                               for recipients: [ProtocolAddress],
                                               identityStore: IdentityKeyStore,
+                                              sessionStore: SessionStore,
                                               context: StoreContext) throws -> [UInt8] {
+    let sessions = try sessionStore.loadExistingSessions(for: recipients, context: context)
     return try context.withOpaquePointer { context in
         try withIdentityKeyStore(identityStore) { ffiIdentityStore in
             try invokeFnReturningArray {
                 signal_sealed_sender_multi_recipient_encrypt($0, $1,
                                                              recipients.map { $0.nativeHandle },
                                                              recipients.count,
+                                                             sessions.map { $0.nativeHandle },
+                                                             sessions.count,
                                                              content.nativeHandle,
                                                              ffiIdentityStore, context)
             }

@@ -157,10 +157,7 @@ impl SessionState {
         for chain in self.session.receiver_chains.iter() {
             let sender_ratchet_public = chain.sender_ratchet_key.clone();
 
-            let chain_key_idx = match &chain.chain_key {
-                Some(chain_key) => Some(chain_key.index),
-                None => None,
-            };
+            let chain_key_idx = chain.chain_key.as_ref().map(|chain_key| chain_key.index);
 
             results.push((sender_ratchet_public, chain_key_idx))
         }
@@ -588,14 +585,11 @@ impl SessionRecord {
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let mut buf = vec![];
-
         let record = RecordStructure {
             current_session: self.current_session.as_ref().map(|s| s.into()),
             previous_sessions: self.previous_sessions.iter().map(|s| s.into()).collect(),
         };
-        record.encode(&mut buf)?;
-        Ok(buf)
+        Ok(record.encode_to_vec())
     }
 
     pub fn remote_registration_id(&self) -> Result<u32> {
@@ -635,5 +629,12 @@ impl SessionRecord {
 
     pub fn get_sender_chain_key_bytes(&self) -> Result<Vec<u8>> {
         self.session_state()?.get_sender_chain_key_bytes()
+    }
+
+    pub fn current_ratchet_key_matches(&self, key: &PublicKey) -> Result<bool> {
+        match &self.current_session {
+            Some(session) => Ok(&session.sender_ratchet_key()? == key),
+            None => Ok(false),
+        }
     }
 }

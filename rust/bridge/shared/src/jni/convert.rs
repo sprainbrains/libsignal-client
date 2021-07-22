@@ -356,6 +356,15 @@ impl<'a> SimpleArgTypeInfo<'a> for CiphertextMessageRef<'a> {
             )
             .transpose()
         })
+        .or_else(|| {
+            native_handle_from_message(
+                env,
+                foreign,
+                "org/whispersystems/libsignal/protocol/PlaintextContent",
+                Self::PlaintextContent,
+            )
+            .transpose()
+        })
         .unwrap_or(Err(SignalJniError::BadJniParameter("CiphertextMessage")))
     }
 }
@@ -463,19 +472,24 @@ impl ResultTypeInfo for CiphertextMessage {
     fn convert_into(self, env: &JNIEnv) -> SignalJniResult<Self::ResultType> {
         let obj = match self {
             CiphertextMessage::SignalMessage(m) => jobject_from_native_handle(
-                &env,
+                env,
                 "org/whispersystems/libsignal/protocol/SignalMessage",
                 box_object::<SignalMessage>(Ok(m))?,
             ),
             CiphertextMessage::PreKeySignalMessage(m) => jobject_from_native_handle(
-                &env,
+                env,
                 "org/whispersystems/libsignal/protocol/PreKeySignalMessage",
                 box_object::<PreKeySignalMessage>(Ok(m))?,
             ),
             CiphertextMessage::SenderKeyMessage(m) => jobject_from_native_handle(
-                &env,
+                env,
                 "org/whispersystems/libsignal/protocol/SenderKeyMessage",
                 box_object::<SenderKeyMessage>(Ok(m))?,
+            ),
+            CiphertextMessage::PlaintextContent(m) => jobject_from_native_handle(
+                env,
+                "org/whispersystems/libsignal/protocol/PlaintextContent",
+                box_object::<PlaintextContent>(Ok(m))?,
             ),
         };
 
@@ -531,7 +545,7 @@ impl ResultTypeInfo for Option<jobject> {
 impl crate::support::Env for &'_ JNIEnv<'_> {
     type Buffer = SignalJniResult<jbyteArray>;
     fn buffer<'a, T: Into<Cow<'a, [u8]>>>(self, input: T) -> Self::Buffer {
-        to_jbytearray(&self, Ok(input.into()))
+        to_jbytearray(self, Ok(input.into()))
     }
 }
 
@@ -567,7 +581,7 @@ macro_rules! jni_bridge_handle {
                 _env: &jni::JNIEnv,
                 foreign: Self::ArgType,
             ) -> jni::SignalJniResult<Self> {
-                Ok(unsafe { jni::native_handle_cast(foreign) }?)
+                unsafe { jni::native_handle_cast(foreign) }
             }
         }
 
@@ -575,26 +589,28 @@ macro_rules! jni_bridge_handle {
             for &'storage [&'storage $typ]
         {
             type ArgType = jni::jlongArray;
-            type StoredType = jni::AutoArray<'context, 'context, jni::jlong>;
+            type StoredType = Vec<&'storage $typ>;
             fn borrow(
                 env: &'context jni::JNIEnv,
                 foreign: Self::ArgType,
             ) -> jni::SignalJniResult<Self::StoredType> {
-                Ok(env.get_long_array_elements(foreign, jni::ReleaseMode::NoCopyBack)?)
+                let array = env.get_long_array_elements(foreign, jni::ReleaseMode::NoCopyBack)?;
+                let len = array.size()? as usize;
+                let slice = unsafe { std::slice::from_raw_parts(array.as_ptr(), len) };
+                slice
+                    .iter()
+                    .map(|&raw_handle| unsafe {
+                        (raw_handle as *const $typ)
+                            .as_ref()
+                            .ok_or(jni::SignalJniError::NullHandle)
+                    })
+                    .collect()
             }
             fn load_from(
                 _env: &jni::JNIEnv,
                 stored: &'storage mut Self::StoredType,
             ) -> jni::SignalJniResult<&'storage [&'storage $typ]> {
-                let len = stored.size()? as usize;
-                let slice_of_pointers = unsafe {
-                    std::slice::from_raw_parts(stored.as_ptr() as *const *const $typ, len)
-                };
-                if slice_of_pointers.contains(&std::ptr::null()) {
-                    return Err(jni::SignalJniError::NullHandle);
-                }
-
-                Ok(unsafe { std::slice::from_raw_parts(stored.as_ptr() as *const &$typ, len) })
+                Ok(&*stored)
             }
         }
         impl jni::ResultTypeInfo for $typ {

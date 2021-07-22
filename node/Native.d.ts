@@ -44,10 +44,18 @@ export function registerErrors(errorsModule: Record<string, unknown>): void;
 
 export const enum LogLevel { Error = 1, Warn, Info, Debug, Trace }
 export function Aes256GcmSiv_Decrypt(aesGcmSiv: Wrapper<Aes256GcmSiv>, ctext: Buffer, nonce: Buffer, associatedData: Buffer): Buffer;
-export function Aes256GcmSiv_Encrypt(aesGcmSiv: Wrapper<Aes256GcmSiv>, ptext: Buffer, nonce: Buffer, associatedData: Buffer): Buffer;
+export function Aes256GcmSiv_Encrypt(aesGcmSivObj: Wrapper<Aes256GcmSiv>, ptext: Buffer, nonce: Buffer, associatedData: Buffer): Buffer;
 export function Aes256GcmSiv_New(key: Buffer): Aes256GcmSiv;
+export function CiphertextMessage_FromPlaintextContent(m: Wrapper<PlaintextContent>): CiphertextMessage;
 export function CiphertextMessage_Serialize(obj: Wrapper<CiphertextMessage>): Buffer;
 export function CiphertextMessage_Type(msg: Wrapper<CiphertextMessage>): number;
+export function DecryptionErrorMessage_Deserialize(buffer: Buffer): DecryptionErrorMessage;
+export function DecryptionErrorMessage_ExtractFromSerializedContent(bytes: Buffer): DecryptionErrorMessage;
+export function DecryptionErrorMessage_ForOriginalMessage(originalBytes: Buffer, originalType: number, originalTimestamp: number, originalSenderDeviceId: number): DecryptionErrorMessage;
+export function DecryptionErrorMessage_GetDeviceId(obj: Wrapper<DecryptionErrorMessage>): number;
+export function DecryptionErrorMessage_GetRatchetKey(m: Wrapper<DecryptionErrorMessage>): PublicKey | null;
+export function DecryptionErrorMessage_GetTimestamp(obj: Wrapper<DecryptionErrorMessage>): number;
+export function DecryptionErrorMessage_Serialize(obj: Wrapper<DecryptionErrorMessage>): Buffer;
 export function Fingerprint_DisplayString(obj: Wrapper<Fingerprint>): string;
 export function Fingerprint_New(iterations: number, version: number, localIdentifier: Buffer, localKey: Wrapper<PublicKey>, remoteIdentifier: Buffer, remoteKey: Wrapper<PublicKey>): Fingerprint;
 export function Fingerprint_ScannableEncoding(obj: Wrapper<Fingerprint>): Buffer;
@@ -55,6 +63,10 @@ export function GroupCipher_DecryptMessage(sender: Wrapper<ProtocolAddress>, mes
 export function GroupCipher_EncryptMessage(sender: Wrapper<ProtocolAddress>, distributionId: Uuid, message: Buffer, store: SenderKeyStore, ctx: null): Promise<CiphertextMessage>;
 export function HKDF_DeriveSecrets(outputLength: number, version: number, ikm: Buffer, label: Buffer | null, salt: Buffer | null): Buffer;
 export function IdentityKeyPair_Serialize(publicKey: Wrapper<PublicKey>, privateKey: Wrapper<PrivateKey>): Buffer;
+export function PlaintextContent_Deserialize(buffer: Buffer): PlaintextContent;
+export function PlaintextContent_FromDecryptionErrorMessage(m: Wrapper<DecryptionErrorMessage>): PlaintextContent;
+export function PlaintextContent_GetBody(obj: Wrapper<PlaintextContent>): Buffer;
+export function PlaintextContent_Serialize(obj: Wrapper<PlaintextContent>): Buffer;
 export function PreKeyBundle_GetDeviceId(obj: Wrapper<PreKeyBundle>): number;
 export function PreKeyBundle_GetIdentityKey(p: Wrapper<PreKeyBundle>): PublicKey;
 export function PreKeyBundle_GetPreKeyId(obj: Wrapper<PreKeyBundle>): number | null;
@@ -99,7 +111,7 @@ export function SealedSenderDecryptionResult_Message(obj: Wrapper<SealedSenderDe
 export function SealedSender_DecryptMessage(message: Buffer, trustRoot: Wrapper<PublicKey>, timestamp: number, localE164: string | null, localUuid: string, localDeviceId: number, sessionStore: SessionStore, identityStore: IdentityKeyStore, prekeyStore: PreKeyStore, signedPrekeyStore: SignedPreKeyStore): Promise<SealedSenderDecryptionResult>;
 export function SealedSender_DecryptToUsmc(ctext: Buffer, identityStore: IdentityKeyStore, ctx: null): Promise<UnidentifiedSenderMessageContent>;
 export function SealedSender_Encrypt(destination: Wrapper<ProtocolAddress>, content: Wrapper<UnidentifiedSenderMessageContent>, identityKeyStore: IdentityKeyStore, ctx: null): Promise<Buffer>;
-export function SealedSender_MultiRecipientEncrypt(recipients: Wrapper<ProtocolAddress>[], content: Wrapper<UnidentifiedSenderMessageContent>, identityKeyStore: IdentityKeyStore, ctx: null): Promise<Buffer>;
+export function SealedSender_MultiRecipientEncrypt(recipients: Wrapper<ProtocolAddress>[], recipientSessions: Wrapper<SessionRecord>[], content: Wrapper<UnidentifiedSenderMessageContent>, identityKeyStore: IdentityKeyStore, ctx: null): Promise<Buffer>;
 export function SealedSender_MultiRecipientMessageForSingleRecipient(encodedMultiRecipientMessage: Buffer): Buffer;
 export function SenderCertificate_Deserialize(buffer: Buffer): SenderCertificate;
 export function SenderCertificate_GetCertificate(obj: Wrapper<SenderCertificate>): Buffer;
@@ -145,6 +157,7 @@ export function SessionCipher_DecryptPreKeySignalMessage(message: Wrapper<PreKey
 export function SessionCipher_DecryptSignalMessage(message: Wrapper<SignalMessage>, protocolAddress: Wrapper<ProtocolAddress>, sessionStore: SessionStore, identityKeyStore: IdentityKeyStore, ctx: null): Promise<Buffer>;
 export function SessionCipher_EncryptMessage(ptext: Buffer, protocolAddress: Wrapper<ProtocolAddress>, sessionStore: SessionStore, identityKeyStore: IdentityKeyStore, ctx: null): Promise<CiphertextMessage>;
 export function SessionRecord_ArchiveCurrentState(sessionRecord: Wrapper<SessionRecord>): void;
+export function SessionRecord_CurrentRatchetKeyMatches(s: Wrapper<SessionRecord>, key: Wrapper<PublicKey>): boolean;
 export function SessionRecord_Deserialize(buffer: Buffer): SessionRecord;
 export function SessionRecord_GetLocalRegistrationId(obj: Wrapper<SessionRecord>): number;
 export function SessionRecord_GetRemoteRegistrationId(obj: Wrapper<SessionRecord>): number;
@@ -176,7 +189,9 @@ export function UnidentifiedSenderMessageContent_Serialize(obj: Wrapper<Unidenti
 export function initLogger(maxLevel: LogLevel, callback: (level: LogLevel, target: string, file: string | null, line: number | null, message: string) => void): void
 interface Aes256GcmSiv { readonly __type: unique symbol; }
 interface CiphertextMessage { readonly __type: unique symbol; }
+interface DecryptionErrorMessage { readonly __type: unique symbol; }
 interface Fingerprint { readonly __type: unique symbol; }
+interface PlaintextContent { readonly __type: unique symbol; }
 interface PreKeyBundle { readonly __type: unique symbol; }
 interface PreKeyRecord { readonly __type: unique symbol; }
 interface PreKeySignalMessage { readonly __type: unique symbol; }

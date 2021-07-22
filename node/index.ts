@@ -24,6 +24,7 @@ export const enum CiphertextMessageType {
   Whisper = 2,
   PreKey = 3,
   SenderKey = 7,
+  Plaintext = 8,
 }
 
 export const enum Direction {
@@ -34,8 +35,8 @@ export const enum Direction {
 // This enum must be kept in sync with sealed_sender.proto.
 export const enum ContentHint {
   Default = 0,
-  Supplementary = 1,
-  Retry = 2,
+  Resendable = 1,
+  Implicit = 2,
 }
 
 export type Uuid = string;
@@ -621,6 +622,10 @@ export class SessionRecord {
   hasCurrentState(): boolean {
     return NativeImpl.SessionRecord_HasCurrentState(this);
   }
+
+  currentRatchetKeyMatches(key: PublicKey): boolean {
+    return NativeImpl.SessionRecord_CurrentRatchetKeyMatches(this, key);
+  }
 }
 
 export class ServerCertificate {
@@ -1008,6 +1013,9 @@ export abstract class SessionStore implements Native.SessionStore {
     record: SessionRecord
   ): Promise<void>;
   abstract getSession(name: ProtocolAddress): Promise<SessionRecord | null>;
+  abstract getExistingSessions(
+    addresses: ProtocolAddress[]
+  ): Promise<SessionRecord[]>;
 }
 
 export abstract class IdentityKeyStore implements Native.IdentityKeyStore {
@@ -1198,6 +1206,10 @@ export class SealedSenderDecryptionResult {
   }
 }
 
+interface CiphertextMessageConvertible {
+  asCiphertextMessage(): CiphertextMessage;
+}
+
 export class CiphertextMessage {
   readonly _nativeHandle: Native.CiphertextMessage;
 
@@ -1211,12 +1223,113 @@ export class CiphertextMessage {
     return new CiphertextMessage(nativeHandle);
   }
 
+  static from(message: CiphertextMessageConvertible): CiphertextMessage {
+    return message.asCiphertextMessage();
+  }
+
   serialize(): Buffer {
     return NativeImpl.CiphertextMessage_Serialize(this);
   }
 
   type(): number {
     return NativeImpl.CiphertextMessage_Type(this);
+  }
+}
+
+export class PlaintextContent implements CiphertextMessageConvertible {
+  readonly _nativeHandle: Native.PlaintextContent;
+
+  private constructor(nativeHandle: Native.PlaintextContent) {
+    this._nativeHandle = nativeHandle;
+  }
+
+  static deserialize(buffer: Buffer): PlaintextContent {
+    return new PlaintextContent(
+      NativeImpl.PlaintextContent_Deserialize(buffer)
+    );
+  }
+
+  static from(message: DecryptionErrorMessage): PlaintextContent {
+    return new PlaintextContent(
+      NativeImpl.PlaintextContent_FromDecryptionErrorMessage(message)
+    );
+  }
+
+  serialize(): Buffer {
+    return NativeImpl.PlaintextContent_Serialize(this);
+  }
+
+  body(): Buffer {
+    return NativeImpl.PlaintextContent_GetBody(this);
+  }
+
+  asCiphertextMessage(): CiphertextMessage {
+    return CiphertextMessage._fromNativeHandle(
+      NativeImpl.CiphertextMessage_FromPlaintextContent(this)
+    );
+  }
+}
+
+export class DecryptionErrorMessage {
+  readonly _nativeHandle: Native.DecryptionErrorMessage;
+
+  private constructor(nativeHandle: Native.DecryptionErrorMessage) {
+    this._nativeHandle = nativeHandle;
+  }
+
+  static _fromNativeHandle(
+    nativeHandle: Native.DecryptionErrorMessage
+  ): DecryptionErrorMessage {
+    return new DecryptionErrorMessage(nativeHandle);
+  }
+
+  static forOriginal(
+    bytes: Buffer,
+    type: CiphertextMessageType,
+    timestamp: number,
+    originalSenderDeviceId: number
+  ): DecryptionErrorMessage {
+    return new DecryptionErrorMessage(
+      NativeImpl.DecryptionErrorMessage_ForOriginalMessage(
+        bytes,
+        type,
+        timestamp,
+        originalSenderDeviceId
+      )
+    );
+  }
+
+  static deserialize(buffer: Buffer): DecryptionErrorMessage {
+    return new DecryptionErrorMessage(
+      NativeImpl.DecryptionErrorMessage_Deserialize(buffer)
+    );
+  }
+
+  static extractFromSerializedBody(buffer: Buffer): DecryptionErrorMessage {
+    return new DecryptionErrorMessage(
+      NativeImpl.DecryptionErrorMessage_ExtractFromSerializedContent(buffer)
+    );
+  }
+
+  serialize(): Buffer {
+    return NativeImpl.DecryptionErrorMessage_Serialize(this);
+  }
+
+  timestamp(): number {
+    return NativeImpl.DecryptionErrorMessage_GetTimestamp(this);
+  }
+
+  deviceId(): number {
+    return NativeImpl.DecryptionErrorMessage_GetDeviceId(this);
+  }
+
+  ratchetKey(): PublicKey | undefined {
+    const keyHandle = NativeImpl.DecryptionErrorMessage_GetRatchetKey(this);
+    if (keyHandle) {
+      return PublicKey._fromNativeHandle(keyHandle);
+    } else {
+      return undefined;
+    }
   }
 }
 
@@ -1316,13 +1429,16 @@ export function sealedSenderEncrypt(
   return NativeImpl.SealedSender_Encrypt(address, content, identityStore, null);
 }
 
-export function sealedSenderMultiRecipientEncrypt(
+export async function sealedSenderMultiRecipientEncrypt(
   content: UnidentifiedSenderMessageContent,
   recipients: ProtocolAddress[],
-  identityStore: IdentityKeyStore
+  identityStore: IdentityKeyStore,
+  sessionStore: SessionStore
 ): Promise<Buffer> {
-  return NativeImpl.SealedSender_MultiRecipientEncrypt(
+  const recipientSessions = await sessionStore.getExistingSessions(recipients);
+  return await NativeImpl.SealedSender_MultiRecipientEncrypt(
     recipients,
+    recipientSessions,
     content,
     identityStore,
     null

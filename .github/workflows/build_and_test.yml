@@ -68,6 +68,9 @@ jobs:
           ignored:
           - 'LICENSE'
           - 'README.md'
+          - 'SECURITY.md'
+          - '.github/FUNDING.yml'
+          - '.github/workflows/**'
           - '.gitignore'
 
     - name: Check pattern completeness
@@ -86,11 +89,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - run: sudo apt-get install gcc-multilib
+
     - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         components: rustfmt, clippy
+        target: i686-unknown-linux-gnu
 
     - name: Check for duplicate dependencies
       run: |
@@ -109,6 +115,12 @@ jobs:
 
     - name: Run tests
       run: cargo test --all --verbose -- -Z unstable-options --include-ignored
+
+    - name: Run tests (32-bit)
+      # Exclude device-transfer because OpenSSL, used for reference results,
+      # doesn't support the --target option.
+      # Exclude signal-neon-futures because those tests run Node
+      run: cargo test --all --verbose --target i686-unknown-linux-gnu --exclude device-transfer --exclude signal-neon-futures -- -Z unstable-options --include-ignored
 
     - name: Build benches
       run: cargo build --benches --verbose
@@ -267,6 +279,12 @@ jobs:
 
       - name: Add iOS targets
         run: rustup target add x86_64-apple-ios aarch64-apple-ios
+
+      - name: Install Xargo
+        run: cargo install xargo
+
+      - name: Add rust-src component
+        run: rustup component add rust-src
 
       - name: Run pod lint
         # No import validation because it tries to build unsupported platforms (like 32-bit iOS).

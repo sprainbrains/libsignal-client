@@ -5,7 +5,7 @@
 
 [package]
 name = "libsignal-ffi"
-version = "0.5.1"
+version = "0.8.3"
 authors = ["Jack Lloyd <jack@signal.org>"]
 edition = "2018"
 license = "AGPL-3.0-only"
@@ -15,7 +15,7 @@ name = "signal_ffi"
 crate-type = ["staticlib"]
 
 [features]
-nightly = ["signal-crypto/nightly", "libsignal-protocol/nightly"]
+nightly = ["libsignal-protocol/nightly"]
 
 [dependencies]
 libsignal-protocol = { path = "../../protocol" }
@@ -23,6 +23,8 @@ device-transfer = { path = "../../device-transfer" }
 signal-crypto = { path = "../../crypto" }
 libsignal-bridge = { path = "../shared", features = ["ffi"] }
 async-trait = "0.1.41"
+cpufeatures = "0.1.5" # Make sure iOS gets optimized crypto.
+futures-util = "0.3"
 libc = "0.2"
 rand = "0.7.3"
 log = "0.4"
