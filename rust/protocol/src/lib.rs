@@ -14,7 +14,7 @@
 //! [X3DH]: https://signal.org/docs/specifications/x3dh/
 //! [Double Ratchet]: https://signal.org/docs/specifications/doubleratchet/
 
-#![feature(vec_extend_from_within)]
+#![cfg_attr(feature = "whisperfork", feature(vec_extend_from_within))]
 #![warn(clippy::unwrap_used)]
 #![deny(unsafe_code)]
 

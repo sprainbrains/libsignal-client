@@ -34,6 +34,7 @@ thiserror = "1.0.30"
 
 [features]
 armv8 = ["aes/armv8", "aes-gcm-siv/armv8"]
+whisperfork = []
 
 [dev-dependencies]
 criterion = "0.3"

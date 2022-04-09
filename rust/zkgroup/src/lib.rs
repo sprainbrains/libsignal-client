@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-#![feature(array_map)]
+#![cfg_attr(feature = "whisperfork", feature(array_map))]
 #![deny(unsafe_code)]
 
 pub mod api;
