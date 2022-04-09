@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#![feature(array_map)]
 #![deny(unsafe_code)]
 
 pub mod api;
