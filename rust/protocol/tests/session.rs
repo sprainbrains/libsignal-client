@@ -1,5 +1,5 @@
 //
-// Copyright 2020 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -12,13 +12,12 @@ use std::convert::TryFrom;
 use support::*;
 
 #[test]
-#[allow(clippy::eval_order_dependence)]
 fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
     async {
         let mut csprng = OsRng;
 
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -38,9 +37,9 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
 
         let bob_pre_key_bundle = PreKeyBundle::new(
             bob_store.get_local_registration_id(None).await?,
-            1,                                               // device id
-            Some((pre_key_id, bob_pre_key_pair.public_key)), // pre key
-            signed_pre_key_id,                               // signed pre key id
+            1.into(),                                               // device id
+            Some((pre_key_id.into(), bob_pre_key_pair.public_key)), // pre key
+            signed_pre_key_id.into(),                               // signed pre key id
             bob_signed_pre_key_pair.public_key,
             bob_signed_pre_key_signature.to_vec(),
             *bob_store.get_identity_key_pair(None).await?.identity_key(),
@@ -68,18 +67,6 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
                 .session_version()?,
             3
         );
-        assert!(alice_store
-            .load_session(&bob_address, None)
-            .await?
-            .expect("session found")
-            .has_sender_chain()
-            .expect("can ask about sender chain"));
-        assert!(!alice_store
-            .load_session(&bob_address, None)
-            .await?
-            .expect("session found")
-            .needs_pni_signature()
-            .expect("has current state"));
 
         let original_message = "L'homme est condamné à être libre";
 
@@ -96,16 +83,16 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
 
         bob_store
             .save_pre_key(
-                pre_key_id,
-                &PreKeyRecord::new(pre_key_id, &bob_pre_key_pair),
+                pre_key_id.into(),
+                &PreKeyRecord::new(pre_key_id.into(), &bob_pre_key_pair),
                 None,
             )
             .await?;
         bob_store
             .save_signed_pre_key(
-                signed_pre_key_id,
+                signed_pre_key_id.into(),
                 &SignedPreKeyRecord::new(
-                    signed_pre_key_id,
+                    signed_pre_key_id.into(),
                     /*timestamp*/ 42,
                     &bob_signed_pre_key_pair,
                     &bob_signed_pre_key_signature,
@@ -133,12 +120,6 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
             .expect("session found");
         assert_eq!(bobs_session_with_alice.session_version()?, 3);
         assert_eq!(bobs_session_with_alice.alice_base_key()?.len(), 32 + 1);
-        assert!(bobs_session_with_alice
-            .has_sender_chain()
-            .expect("can ask about sender chain"));
-        assert!(!bobs_session_with_alice
-            .needs_pni_signature()
-            .expect("has current state"));
 
         let bob_outgoing = encrypt(&mut bob_store, &alice_address, bobs_response).await?;
 
@@ -176,9 +157,9 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
 
         let bob_pre_key_bundle = PreKeyBundle::new(
             bob_store.get_local_registration_id(None).await?,
-            1,                                                   // device id
-            Some((pre_key_id + 1, bob_pre_key_pair.public_key)), // pre key,
-            signed_pre_key_id + 1,
+            1.into(),                                                     // device id
+            Some(((pre_key_id + 1).into(), bob_pre_key_pair.public_key)), // pre key,
+            (signed_pre_key_id + 1).into(),
             bob_signed_pre_key_pair.public_key,
             bob_signed_pre_key_signature.to_vec(),
             *bob_store.get_identity_key_pair(None).await?.identity_key(),
@@ -186,16 +167,16 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
 
         bob_store
             .save_pre_key(
-                pre_key_id + 1,
-                &PreKeyRecord::new(pre_key_id + 1, &bob_pre_key_pair),
+                (pre_key_id + 1).into(),
+                &PreKeyRecord::new((pre_key_id + 1).into(), &bob_pre_key_pair),
                 None,
             )
             .await?;
         bob_store
             .save_signed_pre_key(
-                signed_pre_key_id + 1,
+                (signed_pre_key_id + 1).into(),
                 &SignedPreKeyRecord::new(
-                    signed_pre_key_id + 1,
+                    (signed_pre_key_id + 1).into(),
                     /*timestamp*/ 42,
                     &bob_signed_pre_key_pair,
                     &bob_signed_pre_key_signature,
@@ -245,9 +226,9 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
         // Sign pre-key with wrong key:
         let bob_pre_key_bundle = PreKeyBundle::new(
             bob_store.get_local_registration_id(None).await?,
-            1,                                               // device id
-            Some((pre_key_id, bob_pre_key_pair.public_key)), // pre key
-            signed_pre_key_id,
+            1.into(),                                               // device id
+            Some((pre_key_id.into(), bob_pre_key_pair.public_key)), // pre key
+            signed_pre_key_id.into(),
             bob_signed_pre_key_pair.public_key,
             bob_signed_pre_key_signature.to_vec(),
             *alice_store
@@ -275,13 +256,12 @@ fn test_basic_prekey_v3() -> Result<(), SignalProtocolError> {
 
 #[test]
 #[ignore = "slow to run locally"]
-#[allow(clippy::eval_order_dependence)]
 fn chain_jump_over_limit() -> Result<(), SignalProtocolError> {
     async {
         let mut csprng = OsRng;
 
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -301,9 +281,9 @@ fn chain_jump_over_limit() -> Result<(), SignalProtocolError> {
 
         let bob_pre_key_bundle = PreKeyBundle::new(
             bob_store.get_local_registration_id(None).await?,
-            1,                                               // device id
-            Some((pre_key_id, bob_pre_key_pair.public_key)), // pre key
-            signed_pre_key_id,                               // signed pre key id
+            1.into(),                                               // device id
+            Some((pre_key_id.into(), bob_pre_key_pair.public_key)), // pre key
+            signed_pre_key_id.into(),                               // signed pre key id
             bob_signed_pre_key_pair.public_key,
             bob_signed_pre_key_signature.to_vec(),
             *bob_store.get_identity_key_pair(None).await?.identity_key(),
@@ -321,16 +301,16 @@ fn chain_jump_over_limit() -> Result<(), SignalProtocolError> {
 
         bob_store
             .save_pre_key(
-                pre_key_id,
-                &PreKeyRecord::new(pre_key_id, &bob_pre_key_pair),
+                pre_key_id.into(),
+                &PreKeyRecord::new(pre_key_id.into(), &bob_pre_key_pair),
                 None,
             )
             .await?;
         bob_store
             .save_signed_pre_key(
-                signed_pre_key_id,
+                signed_pre_key_id.into(),
                 &SignedPreKeyRecord::new(
-                    signed_pre_key_id,
+                    signed_pre_key_id.into(),
                     /*timestamp*/ 42,
                     &bob_signed_pre_key_pair,
                     &bob_signed_pre_key_signature,
@@ -364,13 +344,14 @@ fn chain_jump_over_limit() -> Result<(), SignalProtocolError> {
 
 #[test]
 #[ignore = "slow to run locally"]
-#[allow(clippy::eval_order_dependence)]
 fn chain_jump_over_limit_with_self() -> Result<(), SignalProtocolError> {
     async {
         let mut csprng = OsRng;
 
-        let a1_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let a2_address = ProtocolAddress::new("+14151111111".to_owned(), 2);
+        let device_id_1: DeviceId = 1.into();
+        let a1_address = ProtocolAddress::new("+14151111111".to_owned(), device_id_1);
+        let device_id_2: DeviceId = 2.into();
+        let a2_address = ProtocolAddress::new("+14151111111".to_owned(), device_id_2);
 
         let mut a1_store = support::test_in_memory_protocol_store()?;
         let mut a2_store = a1_store.clone(); // same key!
@@ -390,9 +371,9 @@ fn chain_jump_over_limit_with_self() -> Result<(), SignalProtocolError> {
 
         let a2_pre_key_bundle = PreKeyBundle::new(
             a2_store.get_local_registration_id(None).await?,
-            1,                                              // device id
-            Some((pre_key_id, a2_pre_key_pair.public_key)), // pre key
-            signed_pre_key_id,                              // signed pre key id
+            1.into(),                                              // device id
+            Some((pre_key_id.into(), a2_pre_key_pair.public_key)), // pre key
+            signed_pre_key_id.into(),                              // signed pre key id
             a2_signed_pre_key_pair.public_key,
             a2_signed_pre_key_signature.to_vec(),
             *a2_store.get_identity_key_pair(None).await?.identity_key(),
@@ -410,16 +391,16 @@ fn chain_jump_over_limit_with_self() -> Result<(), SignalProtocolError> {
 
         a2_store
             .save_pre_key(
-                pre_key_id,
-                &PreKeyRecord::new(pre_key_id, &a2_pre_key_pair),
+                pre_key_id.into(),
+                &PreKeyRecord::new(pre_key_id.into(), &a2_pre_key_pair),
                 None,
             )
             .await?;
         a2_store
             .save_signed_pre_key(
-                signed_pre_key_id,
+                signed_pre_key_id.into(),
                 &SignedPreKeyRecord::new(
-                    signed_pre_key_id,
+                    signed_pre_key_id.into(),
                     /*timestamp*/ 42,
                     &a2_signed_pre_key_pair,
                     &a2_signed_pre_key_signature,
@@ -460,10 +441,9 @@ fn chain_jump_over_limit_with_self() -> Result<(), SignalProtocolError> {
 }
 
 #[test]
-#[allow(clippy::eval_order_dependence)]
 fn test_bad_signed_pre_key_signature() -> Result<(), SignalProtocolError> {
     async {
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let bob_store = support::test_in_memory_protocol_store()?;
@@ -490,9 +470,9 @@ fn test_bad_signed_pre_key_signature() -> Result<(), SignalProtocolError> {
 
             let bob_pre_key_bundle = PreKeyBundle::new(
                 bob_store.get_local_registration_id(None).await?,
-                1,
-                Some((pre_key_id, bob_pre_key_pair.public_key)),
-                signed_pre_key_id,
+                1.into(),
+                Some((pre_key_id.into(), bob_pre_key_pair.public_key)),
+                signed_pre_key_id.into(),
                 bob_signed_pre_key_pair.public_key,
                 bad_signature,
                 *bob_store.get_identity_key_pair(None).await?.identity_key(),
@@ -514,9 +494,9 @@ fn test_bad_signed_pre_key_signature() -> Result<(), SignalProtocolError> {
 
         let bob_pre_key_bundle = PreKeyBundle::new(
             bob_store.get_local_registration_id(None).await?,
-            1,
-            Some((pre_key_id, bob_pre_key_pair.public_key)),
-            signed_pre_key_id,
+            1.into(),
+            Some((pre_key_id.into(), bob_pre_key_pair.public_key)),
+            signed_pre_key_id.into(),
             bob_signed_pre_key_pair.public_key,
             bob_signed_pre_key_signature,
             *bob_store.get_identity_key_pair(None).await?.identity_key(),
@@ -541,11 +521,10 @@ fn test_bad_signed_pre_key_signature() -> Result<(), SignalProtocolError> {
 // testRepeatBundleMessageV2 cannot be represented
 
 #[test]
-#[allow(clippy::eval_order_dependence)]
 fn repeat_bundle_message_v3() -> Result<(), SignalProtocolError> {
     async {
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -566,9 +545,9 @@ fn repeat_bundle_message_v3() -> Result<(), SignalProtocolError> {
 
         let bob_pre_key_bundle = PreKeyBundle::new(
             bob_store.get_local_registration_id(None).await?,
-            1,                                               // device id
-            Some((pre_key_id, bob_pre_key_pair.public_key)), // pre key
-            signed_pre_key_id,                               // signed pre key id
+            1.into(),                                               // device id
+            Some((pre_key_id.into(), bob_pre_key_pair.public_key)), // pre key
+            signed_pre_key_id.into(),                               // signed pre key id
             bob_signed_pre_key_pair.public_key,
             bob_signed_pre_key_signature.to_vec(),
             *bob_store.get_identity_key_pair(None).await?.identity_key(),
@@ -617,16 +596,16 @@ fn repeat_bundle_message_v3() -> Result<(), SignalProtocolError> {
 
         bob_store
             .save_pre_key(
-                pre_key_id,
-                &PreKeyRecord::new(pre_key_id, &bob_pre_key_pair),
+                pre_key_id.into(),
+                &PreKeyRecord::new(pre_key_id.into(), &bob_pre_key_pair),
                 None,
             )
             .await?;
         bob_store
             .save_signed_pre_key(
-                signed_pre_key_id,
+                signed_pre_key_id.into(),
                 &SignedPreKeyRecord::new(
-                    signed_pre_key_id,
+                    signed_pre_key_id.into(),
                     /*timestamp*/ 42,
                     &bob_signed_pre_key_pair,
                     &bob_signed_pre_key_signature,
@@ -675,13 +654,12 @@ fn repeat_bundle_message_v3() -> Result<(), SignalProtocolError> {
 }
 
 #[test]
-#[allow(clippy::eval_order_dependence)]
 fn bad_message_bundle() -> Result<(), SignalProtocolError> {
     async {
         let mut csprng = OsRng;
 
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -701,9 +679,9 @@ fn bad_message_bundle() -> Result<(), SignalProtocolError> {
 
         let bob_pre_key_bundle = PreKeyBundle::new(
             bob_store.get_local_registration_id(None).await?,
-            1, // device id
-            Some((pre_key_id, bob_pre_key_pair.public_key)),
-            signed_pre_key_id, // signed pre key id
+            1.into(), // device id
+            Some((pre_key_id.into(), bob_pre_key_pair.public_key)),
+            signed_pre_key_id.into(), // signed pre key id
             bob_signed_pre_key_pair.public_key,
             bob_signed_pre_key_signature.to_vec(),
             *bob_store.get_identity_key_pair(None).await?.identity_key(),
@@ -721,16 +699,16 @@ fn bad_message_bundle() -> Result<(), SignalProtocolError> {
 
         bob_store
             .save_pre_key(
-                pre_key_id,
-                &PreKeyRecord::new(pre_key_id, &bob_pre_key_pair),
+                pre_key_id.into(),
+                &PreKeyRecord::new(pre_key_id.into(), &bob_pre_key_pair),
                 None,
             )
             .await?;
         bob_store
             .save_signed_pre_key(
-                signed_pre_key_id,
+                signed_pre_key_id.into(),
                 &SignedPreKeyRecord::new(
-                    signed_pre_key_id,
+                    signed_pre_key_id.into(),
                     /*timestamp*/ 42,
                     &bob_signed_pre_key_pair,
                     &bob_signed_pre_key_signature,
@@ -754,7 +732,7 @@ fn bad_message_bundle() -> Result<(), SignalProtocolError> {
 
         let original_message = "L'homme est condamné à être libre";
 
-        assert!(bob_store.get_pre_key(pre_key_id, None).await.is_ok());
+        assert!(bob_store.get_pre_key(pre_key_id.into(), None).await.is_ok());
         let outgoing_message = encrypt(&mut alice_store, &bob_address, original_message).await?;
 
         assert_eq!(
@@ -774,7 +752,7 @@ fn bad_message_bundle() -> Result<(), SignalProtocolError> {
         assert!(decrypt(&mut bob_store, &alice_address, &incoming_message)
             .await
             .is_err());
-        assert!(bob_store.get_pre_key(pre_key_id, None).await.is_ok());
+        assert!(bob_store.get_pre_key(pre_key_id.into(), None).await.is_ok());
 
         let incoming_message = CiphertextMessage::PreKeySignalMessage(
             PreKeySignalMessage::try_from(outgoing_message.as_slice())?,
@@ -787,7 +765,10 @@ fn bad_message_bundle() -> Result<(), SignalProtocolError> {
             original_message
         );
         assert!(matches!(
-            bob_store.get_pre_key(pre_key_id, None).await.unwrap_err(),
+            bob_store
+                .get_pre_key(pre_key_id.into(), None)
+                .await
+                .unwrap_err(),
             SignalProtocolError::InvalidPreKeyId
         ));
 
@@ -798,11 +779,10 @@ fn bad_message_bundle() -> Result<(), SignalProtocolError> {
 }
 
 #[test]
-#[allow(clippy::eval_order_dependence)]
 fn optional_one_time_prekey() -> Result<(), SignalProtocolError> {
     async {
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -821,9 +801,9 @@ fn optional_one_time_prekey() -> Result<(), SignalProtocolError> {
 
         let bob_pre_key_bundle = PreKeyBundle::new(
             bob_store.get_local_registration_id(None).await?,
-            1,                 // device id
-            None,              // no pre key
-            signed_pre_key_id, // signed pre key id
+            1.into(),                 // device id
+            None,                     // no pre key
+            signed_pre_key_id.into(), // signed pre key id
             bob_signed_pre_key_pair.public_key,
             bob_signed_pre_key_signature.to_vec(),
             *bob_store.get_identity_key_pair(None).await?.identity_key(),
@@ -863,9 +843,9 @@ fn optional_one_time_prekey() -> Result<(), SignalProtocolError> {
 
         bob_store
             .save_signed_pre_key(
-                signed_pre_key_id,
+                signed_pre_key_id.into(),
                 &SignedPreKeyRecord::new(
-                    signed_pre_key_id,
+                    signed_pre_key_id.into(),
                     /*timestamp*/ 42,
                     &bob_signed_pre_key_pair,
                     &bob_signed_pre_key_signature,
@@ -899,8 +879,8 @@ fn message_key_limits() -> Result<(), SignalProtocolError> {
     async {
         let (alice_session_record, bob_session_record) = initialize_sessions_v3()?;
 
-        let alice_address = ProtocolAddress::new("+14159999999".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14158888888".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14159999999".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14158888888".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -961,8 +941,8 @@ fn run_session_interaction(
     async {
         use rand::seq::SliceRandom;
 
-        let alice_address = ProtocolAddress::new("+14159999999".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14158888888".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14159999999".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14158888888".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -1143,7 +1123,6 @@ async fn run_interaction(
     Ok(())
 }
 
-#[allow(clippy::eval_order_dependence)]
 async fn is_session_id_equal(
     alice_store: &dyn ProtocolStore,
     alice_address: &ProtocolAddress,
@@ -1167,8 +1146,8 @@ fn basic_simultaneous_initiate() -> Result<(), SignalProtocolError> {
     async {
         let mut csprng = OsRng;
 
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -1307,8 +1286,8 @@ fn simultaneous_initiate_with_lossage() -> Result<(), SignalProtocolError> {
     async {
         let mut csprng = OsRng;
 
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -1429,8 +1408,8 @@ fn simultaneous_initiate_lost_message() -> Result<(), SignalProtocolError> {
     async {
         let mut csprng = OsRng;
 
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -1560,8 +1539,8 @@ fn simultaneous_initiate_repeated_messages() -> Result<(), SignalProtocolError> 
     async {
         let mut csprng = OsRng;
 
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -1762,8 +1741,8 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
     async {
         let mut csprng = OsRng;
 
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
+        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
+        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1.into());
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store = support::test_in_memory_protocol_store()?;
@@ -2000,84 +1979,6 @@ fn simultaneous_initiate_lost_message_repeated_messages() -> Result<(), SignalPr
         );
 
         assert!(is_session_id_equal(&bob_store, &bob_address, &alice_store, &alice_address).await?);
-
-        Ok(())
-    }
-    .now_or_never()
-    .expect("sync")
-}
-
-#[test]
-fn test_needs_pni_signature() -> Result<(), SignalProtocolError> {
-    async {
-        let mut csprng = OsRng;
-
-        let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1);
-        let bob_address = ProtocolAddress::new("+14151111112".to_owned(), 1);
-
-        let mut alice_store = support::test_in_memory_protocol_store()?;
-        let mut bob_store = support::test_in_memory_protocol_store()?;
-
-        let bob_pre_key_bundle = create_pre_key_bundle(&mut bob_store, &mut csprng).await?;
-
-        process_prekey_bundle(
-            &bob_address,
-            &mut alice_store.session_store,
-            &mut alice_store.identity_store,
-            &bob_pre_key_bundle,
-            &mut csprng,
-            None,
-        )
-        .await?;
-
-        // Not set by default.
-        let mut alice_session_with_bob = alice_store
-            .load_session(&bob_address, None)
-            .await?
-            .expect("session found");
-        assert!(!alice_session_with_bob
-            .needs_pni_signature()
-            .expect("has current session"));
-
-        alice_session_with_bob
-            .set_needs_pni_signature(true)
-            .expect("has current session");
-
-        assert!(alice_session_with_bob
-            .needs_pni_signature()
-            .expect("has current session"));
-
-        alice_store
-            .store_session(&bob_address, &alice_session_with_bob, None)
-            .await?;
-
-        // Sending a message doesn't clear the state...
-        let message = encrypt(&mut alice_store, &bob_address, "SYN").await?;
-
-        assert!(alice_store
-            .load_session(&bob_address, None)
-            .await?
-            .expect("session found")
-            .needs_pni_signature()
-            .expect("has current session"));
-
-        // ...but receiving one does.
-        let _ = decrypt(&mut bob_store, &alice_address, &message).await?;
-
-        let reply = encrypt(&mut bob_store, &alice_address, "ACK").await?;
-        let _ = decrypt(&mut alice_store, &bob_address, &reply).await?;
-
-        let mut alice_session_with_bob = alice_store
-            .load_session(&bob_address, None)
-            .await?
-            .expect("session found");
-        assert!(!alice_session_with_bob
-            .needs_pni_signature()
-            .expect("has current session"));
-
-        // If you archive the session, you don't get to ask.
-        alice_session_with_bob.archive_current_state()?;
-        assert!(alice_session_with_bob.needs_pni_signature().is_err());
 
         Ok(())
     }

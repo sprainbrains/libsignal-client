@@ -14,9 +14,7 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use serde::{Deserialize, Serialize};
 
-use curve25519_dalek::subtle::Choice;
-use curve25519_dalek::subtle::ConditionallySelectable;
-use curve25519_dalek::subtle::ConstantTimeEq;
+use curve25519_dalek::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use lazy_static::lazy_static;
 
@@ -25,25 +23,25 @@ lazy_static! {
         bincode::deserialize::<SystemParams>(&SystemParams::SYSTEM_HARDCODED).unwrap();
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SystemParams {
     pub(crate) G_b1: RistrettoPoint,
     pub(crate) G_b2: RistrettoPoint,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyPair {
     pub(crate) b1: Scalar,
     pub(crate) b2: Scalar,
     pub(crate) B: RistrettoPoint,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicKey {
     pub(crate) B: RistrettoPoint,
 }
 
-#[derive(Copy, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ciphertext {
     pub(crate) E_B1: RistrettoPoint,
     pub(crate) E_B2: RistrettoPoint,

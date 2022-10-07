@@ -4,13 +4,11 @@
 //
 
 use crate::{
-    IdentityKey, IdentityKeyPair, PreKeyRecord, ProtocolAddress, Result, SenderKeyRecord,
-    SessionRecord, SignalProtocolError, SignedPreKeyRecord,
+    IdentityKey, IdentityKeyPair, PreKeyId, PreKeyRecord, ProtocolAddress, Result, SenderKeyRecord,
+    SessionRecord, SignalProtocolError, SignedPreKeyId, SignedPreKeyRecord,
 };
 
-use crate::state::{PreKeyId, SignedPreKeyId};
-use crate::storage::traits;
-use crate::storage::Context;
+use crate::storage::{traits, Context};
 
 use async_trait::async_trait;
 use std::borrow::Cow;

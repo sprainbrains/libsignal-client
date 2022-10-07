@@ -7,14 +7,14 @@ import ByteArray from '../internal/ByteArray';
 import * as Native from '../../../Native';
 
 export default class ReceiptCredential extends ByteArray {
+  private readonly __type?: never;
+
   constructor(contents: Buffer) {
     super(contents, Native.ReceiptCredential_CheckValidContents);
   }
 
-  getReceiptExpirationTime(): bigint {
-    return Native.ReceiptCredential_GetReceiptExpirationTime(
-      this.contents
-    ).readBigUInt64BE();
+  getReceiptExpirationTime(): number {
+    return Native.ReceiptCredential_GetReceiptExpirationTime(this.contents);
   }
 
   getReceiptLevel(): bigint {

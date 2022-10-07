@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-use crate::consts;
-use crate::crypto;
+use crate::{consts, crypto};
 
 use crate::{
     CiphertextMessageType, Context, KeyPair, ProtocolAddress, Result, SenderKeyDistributionMessage,
@@ -141,7 +140,7 @@ pub async fn group_decrypt(
         .await?
         .ok_or(SignalProtocolError::NoSenderKeyState { distribution_id })?;
 
-    let mut sender_key_state = match record.sender_key_state_for_chain_id(chain_id) {
+    let sender_key_state = match record.sender_key_state_for_chain_id(chain_id) {
         Some(state) => state,
         None => {
             log::error!(
@@ -168,7 +167,7 @@ pub async fn group_decrypt(
         return Err(SignalProtocolError::SignatureValidationFailed);
     }
 
-    let sender_key = get_sender_key(&mut sender_key_state, skm.iteration(), distribution_id)?;
+    let sender_key = get_sender_key(sender_key_state, skm.iteration(), distribution_id)?;
 
     let plaintext = match crypto::aes_256_cbc_decrypt(
         skm.ciphertext(),

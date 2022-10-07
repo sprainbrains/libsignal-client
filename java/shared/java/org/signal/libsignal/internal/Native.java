@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.util.UUID;
+import java.util.Map;
 
 public final class Native {
   private static void copyToTempFileAndLoad(InputStream in, String extension) throws IOException {
@@ -105,10 +106,15 @@ public final class Native {
   public static native long Aes256GcmSiv_New(byte[] key);
 
   public static native void AuthCredentialPresentation_CheckValidContents(byte[] presentationBytes);
-  public static native int AuthCredentialPresentation_GetRedemptionTime(byte[] presentationBytes);
+  public static native byte[] AuthCredentialPresentation_GetPniCiphertext(byte[] presentationBytes);
+  public static native long AuthCredentialPresentation_GetRedemptionTime(byte[] presentationBytes);
   public static native byte[] AuthCredentialPresentation_GetUuidCiphertext(byte[] presentationBytes);
 
   public static native void AuthCredentialResponse_CheckValidContents(byte[] buffer);
+
+  public static native void AuthCredentialWithPniResponse_CheckValidContents(byte[] buffer);
+
+  public static native void AuthCredentialWithPni_CheckValidContents(byte[] buffer);
 
   public static native void AuthCredential_CheckValidContents(byte[] buffer);
 
@@ -117,7 +123,9 @@ public final class Native {
   public static native byte[] Cds2ClientState_EstablishedRecv(long cli, byte[] receivedCiphertext);
   public static native byte[] Cds2ClientState_EstablishedSend(long cli, byte[] plaintextToSend);
   public static native byte[] Cds2ClientState_InitialRequest(long obj);
-  public static native long Cds2ClientState_New(byte[] mrenclave, byte[] caCert, byte[] attestationMsg, long earliestValidTimestamp);
+  public static native long Cds2ClientState_New(byte[] mrenclave, byte[] attestationMsg, long currentTimestamp);
+
+  public static native Map Cds2Metrics_extract(byte[] attestationMsg);
 
   public static native void CryptographicHash_Destroy(long handle);
   public static native byte[] CryptographicHash_Finalize(long hash);
@@ -157,6 +165,11 @@ public final class Native {
   public static native byte[] ECPublicKey_GetPublicKeyBytes(long obj);
   public static native byte[] ECPublicKey_Serialize(long obj);
   public static native boolean ECPublicKey_Verify(long key, byte[] message, byte[] signature);
+
+  public static native void ExpiringProfileKeyCredentialResponse_CheckValidContents(byte[] buffer);
+
+  public static native void ExpiringProfileKeyCredential_CheckValidContents(byte[] buffer);
+  public static native long ExpiringProfileKeyCredential_GetExpirationTime(byte[] credential);
 
   public static native byte[] GroupCipher_DecryptMessage(long sender, byte[] message, SenderKeyStore store, Object ctx);
   public static native CiphertextMessage GroupCipher_EncryptMessage(long sender, UUID distributionId, byte[] message, SenderKeyStore store, Object ctx);
@@ -260,6 +273,7 @@ public final class Native {
 
   public static native void ProfileKeyCredentialPresentation_CheckValidContents(byte[] presentationBytes);
   public static native byte[] ProfileKeyCredentialPresentation_GetProfileKeyCiphertext(byte[] presentationBytes);
+  public static native byte[] ProfileKeyCredentialPresentation_GetStructurallyValidV1PresentationBytes(byte[] presentationBytes);
   public static native byte[] ProfileKeyCredentialPresentation_GetUuidCiphertext(byte[] presentationBytes);
 
   public static native void ProfileKeyCredentialRequestContext_CheckValidContents(byte[] buffer);
@@ -352,6 +366,8 @@ public final class Native {
 
   public static native void ServerPublicParams_CheckValidContents(byte[] buffer);
   public static native byte[] ServerPublicParams_CreateAuthCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] authCredential);
+  public static native byte[] ServerPublicParams_CreateAuthCredentialWithPniPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] authCredential);
+  public static native byte[] ServerPublicParams_CreateExpiringProfileKeyCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] profileKeyCredential);
   public static native byte[] ServerPublicParams_CreatePniCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] pniCredential);
   public static native byte[] ServerPublicParams_CreatePniCredentialRequestContextDeterministic(byte[] serverPublicParams, byte[] randomness, UUID aci, UUID pni, byte[] profileKey);
   public static native byte[] ServerPublicParams_CreateProfileKeyCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] profileKeyCredential);
@@ -359,6 +375,8 @@ public final class Native {
   public static native byte[] ServerPublicParams_CreateReceiptCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] receiptCredential);
   public static native byte[] ServerPublicParams_CreateReceiptCredentialRequestContextDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] receiptSerial);
   public static native byte[] ServerPublicParams_ReceiveAuthCredential(byte[] params, UUID uuid, int redemptionTime, byte[] response);
+  public static native byte[] ServerPublicParams_ReceiveAuthCredentialWithPni(byte[] params, UUID aci, UUID pni, long redemptionTime, byte[] response);
+  public static native byte[] ServerPublicParams_ReceiveExpiringProfileKeyCredential(byte[] serverPublicParams, byte[] requestContext, byte[] response, long currentTimeInSeconds);
   public static native byte[] ServerPublicParams_ReceivePniCredential(byte[] serverPublicParams, byte[] requestContext, byte[] response);
   public static native byte[] ServerPublicParams_ReceiveProfileKeyCredential(byte[] serverPublicParams, byte[] requestContext, byte[] response);
   public static native byte[] ServerPublicParams_ReceiveReceiptCredential(byte[] serverPublicParams, byte[] requestContext, byte[] response);
@@ -368,13 +386,15 @@ public final class Native {
   public static native byte[] ServerSecretParams_GenerateDeterministic(byte[] randomness);
   public static native byte[] ServerSecretParams_GetPublicParams(byte[] params);
   public static native byte[] ServerSecretParams_IssueAuthCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, UUID uuid, int redemptionTime);
+  public static native byte[] ServerSecretParams_IssueAuthCredentialWithPniDeterministic(byte[] serverSecretParams, byte[] randomness, UUID aci, UUID pni, long redemptionTime);
+  public static native byte[] ServerSecretParams_IssueExpiringProfileKeyCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, byte[] request, UUID uuid, byte[] commitment, long expirationInSeconds);
   public static native byte[] ServerSecretParams_IssuePniCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, byte[] request, UUID aci, UUID pni, byte[] commitment);
   public static native byte[] ServerSecretParams_IssueProfileKeyCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, byte[] request, UUID uuid, byte[] commitment);
   public static native byte[] ServerSecretParams_IssueReceiptCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, byte[] request, long receiptExpirationTime, long receiptLevel);
   public static native byte[] ServerSecretParams_SignDeterministic(byte[] params, byte[] randomness, byte[] message);
-  public static native void ServerSecretParams_VerifyAuthCredentialPresentation(byte[] serverSecretParams, byte[] groupPublicParams, byte[] presentationBytes);
+  public static native void ServerSecretParams_VerifyAuthCredentialPresentation(byte[] serverSecretParams, byte[] groupPublicParams, byte[] presentationBytes, long currentTimeInSeconds);
   public static native void ServerSecretParams_VerifyPniCredentialPresentation(byte[] serverSecretParams, byte[] groupPublicParams, byte[] presentationBytes);
-  public static native void ServerSecretParams_VerifyProfileKeyCredentialPresentation(byte[] serverSecretParams, byte[] groupPublicParams, byte[] presentationBytes);
+  public static native void ServerSecretParams_VerifyProfileKeyCredentialPresentation(byte[] serverSecretParams, byte[] groupPublicParams, byte[] presentationBytes, long currentTimeInSeconds);
   public static native void ServerSecretParams_VerifyReceiptCredentialPresentation(byte[] serverSecretParams, byte[] presentation);
 
   public static native void SessionBuilder_ProcessPreKeyBundle(long bundle, long protocolAddress, SessionStore sessionStore, IdentityKeyStore identityKeyStore, Object ctx);
@@ -399,10 +419,8 @@ public final class Native {
   public static native boolean SessionRecord_HasSenderChain(long obj);
   public static native long SessionRecord_InitializeAliceSession(long identityKeyPrivate, long identityKeyPublic, long basePrivate, long basePublic, long theirIdentityKey, long theirSignedPrekey, long theirRatchetKey);
   public static native long SessionRecord_InitializeBobSession(long identityKeyPrivate, long identityKeyPublic, long signedPrekeyPrivate, long signedPrekeyPublic, long ephPrivate, long ephPublic, long theirIdentityKey, long theirBaseKey);
-  public static native boolean SessionRecord_NeedsPniSignature(long obj);
   public static native long SessionRecord_NewFresh();
   public static native byte[] SessionRecord_Serialize(long obj);
-  public static native void SessionRecord_SetNeedsPniSignature(long s, boolean needsPniSignature);
 
   public static native long SignalMessage_Deserialize(byte[] data);
   public static native void SignalMessage_Destroy(long handle);

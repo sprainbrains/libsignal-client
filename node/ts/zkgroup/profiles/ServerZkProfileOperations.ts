@@ -1,5 +1,5 @@
 //
-// Copyright 2020-2021 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -10,6 +10,7 @@ import { RANDOM_LENGTH } from '../internal/Constants';
 import ServerSecretParams from '../ServerSecretParams';
 import GroupPublicParams from '../groups/GroupPublicParams';
 
+import ExpiringProfileKeyCredentialResponse from './ExpiringProfileKeyCredentialResponse';
 import PniCredentialPresentation from './PniCredentialPresentation';
 import PniCredentialResponse from './PniCredentialResponse';
 import ProfileKeyCommitment from './ProfileKeyCommitment';
@@ -58,6 +59,45 @@ export default class ServerZkProfileOperations {
     );
   }
 
+  issueExpiringProfileKeyCredential(
+    profileKeyCredentialRequest: ProfileKeyCredentialRequest,
+    uuid: UUIDType,
+    profileKeyCommitment: ProfileKeyCommitment,
+    expirationInSeconds: number
+  ): ExpiringProfileKeyCredentialResponse {
+    const random = randomBytes(RANDOM_LENGTH);
+
+    return this.issueExpiringProfileKeyCredentialWithRandom(
+      random,
+      profileKeyCredentialRequest,
+      uuid,
+      profileKeyCommitment,
+      expirationInSeconds
+    );
+  }
+
+  issueExpiringProfileKeyCredentialWithRandom(
+    random: Buffer,
+    profileKeyCredentialRequest: ProfileKeyCredentialRequest,
+    uuid: UUIDType,
+    profileKeyCommitment: ProfileKeyCommitment,
+    expirationInSeconds: number
+  ): ExpiringProfileKeyCredentialResponse {
+    return new ExpiringProfileKeyCredentialResponse(
+      Native.ServerSecretParams_IssueExpiringProfileKeyCredentialDeterministic(
+        this.serverSecretParams.getContents(),
+        random,
+        profileKeyCredentialRequest.getContents(),
+        fromUUID(uuid),
+        profileKeyCommitment.getContents(),
+        expirationInSeconds
+      )
+    );
+  }
+
+  /**
+   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential
+   */
   issuePniCredential(
     profileKeyCredentialRequest: ProfileKeyCredentialRequest,
     aci: UUIDType,
@@ -75,6 +115,9 @@ export default class ServerZkProfileOperations {
     );
   }
 
+  /**
+   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential
+   */
   issuePniCredentialWithRandom(
     random: Buffer,
     profileKeyCredentialRequest: ProfileKeyCredentialRequest,
@@ -96,15 +139,20 @@ export default class ServerZkProfileOperations {
 
   verifyProfileKeyCredentialPresentation(
     groupPublicParams: GroupPublicParams,
-    profileKeyCredentialPresentation: ProfileKeyCredentialPresentation
+    profileKeyCredentialPresentation: ProfileKeyCredentialPresentation,
+    now: Date = new Date()
   ): void {
     Native.ServerSecretParams_VerifyProfileKeyCredentialPresentation(
       this.serverSecretParams.getContents(),
       groupPublicParams.getContents(),
-      profileKeyCredentialPresentation.getContents()
+      profileKeyCredentialPresentation.getContents(),
+      Math.floor(now.getTime() / 1000)
     );
   }
 
+  /**
+   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential
+   */
   verifyPniCredentialPresentation(
     groupPublicParams: GroupPublicParams,
     presentation: PniCredentialPresentation

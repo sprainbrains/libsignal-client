@@ -5,7 +5,8 @@
 
 //! SGX report body, ported from Open Enclave headers in v0.17.7.
 
-use std::convert::TryFrom;
+use bitflags::bitflags;
+use std::convert::{TryFrom, TryInto};
 use std::intrinsics::transmute;
 
 use crate::endian::*;
@@ -17,6 +18,8 @@ use crate::endian::*;
 const SGX_CPUSVN_SIZE: usize = 16;
 const SGX_HASH_SIZE: usize = 32;
 
+pub type MREnclave = [u8; SGX_HASH_SIZE];
+
 #[derive(Debug)]
 #[repr(C, packed)]
 // sgx_report_body_t
@@ -27,7 +30,7 @@ pub(crate) struct SgxReportBody {
 
     //     /* (16) Selector for which fields are defined in SSA.MISC */
     //     uint32_t miscselect;
-    _miscselect: UInt32LE,
+    pub miscselect: UInt32LE,
 
     //     /* (20) Reserved */
     //     uint8_t reserved1[12];
@@ -40,11 +43,11 @@ pub(crate) struct SgxReportBody {
     //
     //     /* (48) Enclave attributes */
     //     sgx_attributes_t attributes;
-    _sgx_attributes: [u8; 16],
+    pub sgx_attributes: [u8; 16],
     //
     //     /* (64) Enclave measurement */
     //     uint8_t mrenclave[SGX_HASH_SIZE];
-    _mrenclave: [u8; SGX_HASH_SIZE],
+    pub mrenclave: MREnclave,
 
     //
     //     /* (96) Reserved */
@@ -54,7 +57,7 @@ pub(crate) struct SgxReportBody {
     //
     //     /* (128) The value of the enclave's SIGNER measurement */
     //     uint8_t mrsigner[SGX_HASH_SIZE];
-    _mrsigner: [u8; SGX_HASH_SIZE],
+    pub mrsigner: [u8; SGX_HASH_SIZE],
 
     //     /* (160) Reserved */
     //     uint8_t reserved3[32];
@@ -66,11 +69,11 @@ pub(crate) struct SgxReportBody {
 
     //     /* (256) Enclave product ID */
     //     uint16_t isvprodid;
-    _isvprodid: UInt16LE,
+    pub isvprodid: UInt16LE,
 
     //     /* (258) Enclave security version */
     //     uint16_t isvsvn;
-    _isvsvn: UInt16LE,
+    pub isvsvn: UInt16LE,
 
     //     /* (260) Enclave Configuration Security Version*/
     //     uint16_t configsvn;
@@ -86,10 +89,32 @@ pub(crate) struct SgxReportBody {
 
     //     /* (320) User report data */
     //     sgx_report_data_t report_data;  // unsigned char field[64];
-    _sgx_report_data_bytes: [u8; 64],
+    pub sgx_report_data_bytes: [u8; 64],
 }
 
 static_assertions::const_assert_eq!(384, std::mem::size_of::<SgxReportBody>());
+
+bitflags! {
+    /// SGX enclave flags
+    ///
+    /// Defined in https://github.com/intel/linux-sgx/blob/master/common/inc/sgx_attributes.h
+    pub struct SgxFlags : u64 {
+        const INITED = 0b00000001;
+        const DEBUG = 0b00000010;
+        const MODE64BIT = 0b00000100;
+        const PROVISION_KEY = 0b00001000;
+        const EINITTOKEN_KEY = 0b00100000;
+        const KSS = 0b10000000;
+    }
+}
+
+impl SgxReportBody {
+    pub fn has_flag(&self, flag: SgxFlags) -> bool {
+        // first 8 bytes are little endian SGX flags
+        let bytes: [u8; 8] = self.sgx_attributes[0..8].try_into().unwrap();
+        SgxFlags::from_bits_truncate(u64::from_le_bytes(bytes)).contains(flag)
+    }
+}
 
 impl TryFrom<[u8; std::mem::size_of::<SgxReportBody>()]> for SgxReportBody {
     type Error = super::Error;

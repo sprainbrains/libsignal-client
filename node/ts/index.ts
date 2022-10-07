@@ -1,5 +1,5 @@
 //
-// Copyright 2020-2021 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -249,6 +249,16 @@ export class IdentityKeyPair {
   static generate(): IdentityKeyPair {
     const privateKey = PrivateKey.generate();
     return new IdentityKeyPair(privateKey.getPublicKey(), privateKey);
+  }
+
+  static deserialize(buffer: Buffer): IdentityKeyPair {
+    const { privateKey, publicKey } = Native.IdentityKeyPair_Deserialize(
+      buffer
+    );
+    return new IdentityKeyPair(
+      PublicKey._fromNativeHandle(publicKey),
+      PrivateKey._fromNativeHandle(privateKey)
+    );
   }
 
   serialize(): Buffer {
@@ -584,25 +594,6 @@ export class SessionRecord {
 
   hasCurrentState(): boolean {
     return Native.SessionRecord_HasCurrentState(this);
-  }
-
-  /**
-   * Returns true if this session was marked as needing a PNI signature and has not received a
-   * reply.
-   *
-   * Precondition: `this.hasCurrentState()`
-   */
-  needsPniSignature(): boolean {
-    return Native.SessionRecord_NeedsPniSignature(this);
-  }
-
-  /**
-   * Marks whether this session needs a PNI signature included in outgoing messages.
-   *
-   * Precondition: `this.hasCurrentState()`
-   */
-  setNeedsPniSignature(needsPniSignature: boolean): void {
-    Native.SessionRecord_SetNeedsPniSignature(this, needsPniSignature);
   }
 
   currentRatchetKeyMatches(key: PublicKey): boolean {
@@ -1464,18 +1455,16 @@ export class Cds2Client {
     this._nativeHandle = nativeHandle;
   }
 
-  static new_NOT_FOR_PRODUCTION(
+  static new(
     mrenclave: Buffer,
-    trustedCaCert: Buffer,
     attestationMsg: Buffer,
-    earliestValidTimestamp: Date
+    currentTimestamp: Date
   ): Cds2Client {
     return new Cds2Client(
       Native.Cds2ClientState_New(
         mrenclave,
-        trustedCaCert,
         attestationMsg,
-        earliestValidTimestamp.getTime()
+        currentTimestamp.getTime()
       )
     );
   }

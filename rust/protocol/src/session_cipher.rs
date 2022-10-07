@@ -1,5 +1,5 @@
 //
-// Copyright 2020-2021 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -10,10 +10,9 @@ use crate::{
 };
 
 use crate::consts::MAX_FORWARD_JUMPS;
-use crate::crypto;
 use crate::ratchet::{ChainKey, MessageKeys};
-use crate::session;
 use crate::state::{InvalidSessionError, SessionState};
+use crate::{crypto, session};
 
 use rand::{CryptoRng, Rng};
 

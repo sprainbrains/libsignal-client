@@ -8,6 +8,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CBINDGEN_VERSION: 0.20.0
+  NDK_VERSION: 21.0.6113669
+  RUST_BACKTRACE: 1
 
 jobs:
   changes:
@@ -73,8 +75,8 @@ jobs:
       run: echo "::error file=.github/workflows/build_and_test.yml::File not included in any filter" && false
       if: ${{ !contains(steps.filter.outputs.*, 'true') }}
 
-  rust-stable:
-    name: Rust stable
+  rust:
+    name: Rust
 
     runs-on: ubuntu-latest
 
@@ -82,87 +84,79 @@ jobs:
 
     if: ${{ needs.changes.outputs.rust == 'true' }}
 
-    steps:
-    - uses: actions/checkout@v2
-
-    - run: sudo apt-get update && sudo apt-get install gcc-multilib
-
-    - name: Install Rust
-      run: rustup +stable target add i686-unknown-linux-gnu
-
-    - name: Build
-      run: cargo +stable build --verbose
-
-    - name: Run tests
-      run: cargo +stable test --workspace --verbose -- --include-ignored
-
-    - name: Run tests (32-bit)
-      # Exclude device-transfer because OpenSSL, used for reference results,
-      # doesn't support the --target option.
-      # Exclude signal-neon-futures because those tests run Node
-      run: cargo +stable test --workspace --verbose --target i686-unknown-linux-gnu --exclude device-transfer --exclude signal-neon-futures -- --include-ignored
-
-    - name: Build benches
-      run: cargo +stable build --workspace --benches --verbose
-
-    - name: Check that the fuzz target still builds
-      # We do this on stable because the fuzz target doesn't have a lockfile,
-      # and crates don't generally support arbitrary nightly versions.
-      # See https://github.com/dtolnay/proc-macro2/issues/307 for an example.
-      run: cargo +stable check --all-targets
-      working-directory: rust/protocol/fuzz
-      env:
-        RUSTFLAGS: --cfg fuzzing
-
-  rust-nightly:
-    name: Rust nightly
-
-    runs-on: ubuntu-latest
-
-    needs: changes
-
-    if: ${{ needs.changes.outputs.rust == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [nightly, stable]
+        include:
+          - version: stable
+            toolchain: "+stable"
 
     steps:
     - uses: actions/checkout@v2
 
-    - run: sudo apt-get update && sudo apt-get install gcc-multilib
+    - run: sudo apt-get update && sudo apt-get install gcc-multilib g++-multilib
 
-    - name: Install Rust
+    - name: Install Rust (nightly)
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         components: rustfmt, clippy
         target: i686-unknown-linux-gnu
+      if: matrix.version == 'nightly'
+
+    - name: Install Rust (stable)
+      run: rustup +stable target add i686-unknown-linux-gnu
+      if: matrix.version == 'stable'
 
     # This should be done before anything else
     # because it also checks that the lockfile is up to date.
     - name: Check for duplicate dependencies
       run: ./bin/verify_duplicate_crates
+      if: matrix.version == 'nightly'
 
     - name: Rustfmt check
       run: cargo fmt --all -- --check
+      if: matrix.version == 'nightly'
 
     - name: Check bridge versioning
       run: ./bin/update_versions.py
+      if: matrix.version == 'nightly'
 
     - name: Build
-      run: cargo build --all --verbose
+      run: cargo ${{ matrix.toolchain }} build --workspace --verbose
 
     - name: Run tests
-      run: cargo test --all --verbose -- -Z unstable-options --include-ignored
+      run: cargo ${{ matrix.toolchain }} test --workspace --all-features --verbose -- -Z unstable-options --include-ignored
 
     - name: Run tests (32-bit)
-      # Exclude device-transfer because OpenSSL, used for reference results,
-      # doesn't support the --target option.
       # Exclude signal-neon-futures because those tests run Node
-      run: cargo test --all --verbose --target i686-unknown-linux-gnu --exclude device-transfer --exclude signal-neon-futures -- -Z unstable-options --include-ignored
+      run: cargo ${{ matrix.toolchain }} test --workspace --all-features --verbose --target i686-unknown-linux-gnu --exclude signal-neon-futures -- -Z unstable-options --include-ignored
 
-    - name: Build benches
-      run: cargo build --benches --verbose
+    - name: Build benches and bins
+      run: cargo ${{ matrix.toolchain }} build --benches --bins --all-features --verbose
 
     - name: Clippy
-      run: cargo clippy --workspace --all-targets -- -D warnings
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      if: matrix.version == 'nightly'
+
+    # We check the fuzz targets on stable because they don't have lockfiles,
+    # and crates don't generally support arbitrary nightly versions.
+    # See https://github.com/dtolnay/proc-macro2/issues/307 for an example.
+
+    - name: Check that the protocol fuzz target still builds
+      run: cargo +stable check --all-targets
+      working-directory: rust/protocol/fuzz
+      env:
+        RUSTFLAGS: --cfg fuzzing
+      if: matrix.version == 'stable'
+
+    - name: Check that the attest fuzz target still builds
+      run: cargo +stable check --all-targets
+      working-directory: rust/attest/fuzz
+      env:
+        RUSTFLAGS: --cfg fuzzing
+      if: matrix.version == 'stable'
 
   java:
     name: Java
@@ -176,8 +170,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install NDK 21.0.6113669
-      run: sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;21.0.6113669"
+    - name: Install NDK
+      run: sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;${NDK_VERSION}"
 
     - name: Install Rust
       uses: actions-rs/toolchain@v1
@@ -186,9 +180,6 @@ jobs:
 
     - name: Install Android toolchains
       run: rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
-
-    - name: Install NDK tool
-      run: cargo install --version=1.0.0 cargo-ndk
 
     - name: Install pinned cbindgen
       run: cargo +stable install cbindgen --version ${CBINDGEN_VERSION}
@@ -199,7 +190,7 @@ jobs:
     - run: ./gradlew build
       working-directory: java
       env:
-        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk-bundle
+        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/${{ env.NDK_VERSION }}
 
     - run: java/check_code_size.py
 
@@ -228,6 +219,12 @@ jobs:
       id: get-nvm-version
       shell: bash
       run: echo "::set-output name=node-version::$(cat .nvmrc)"
+
+    # install nasm compiler for boring
+    - name: Install nasm
+      if: startsWith(matrix.os, 'windows')
+      run: choco install nasm
+      shell: cmd
 
     - uses: actions/setup-node@v2
       with:
@@ -307,7 +304,6 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          components: rust-src
 
       - name: Add iOS targets
         run: rustup target add x86_64-apple-ios aarch64-apple-ios aarch64-apple-ios-sim
@@ -316,5 +312,4 @@ jobs:
         # No import validation because it tries to build unsupported platforms (like 32-bit iOS).
         run: pod lib lint --verbose --platforms=ios --include-podspecs=SignalCoreKit/SignalCoreKit.podspec --skip-import-validation
         env:
-          XCODE_XCCONFIG_FILE: swift/PodLibLint.xcconfig
-
+          SKIP_CATALYST: 1

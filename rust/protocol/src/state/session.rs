@@ -1,5 +1,5 @@
 //
-// Copyright 2020 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -13,8 +13,7 @@ use crate::ratchet::{ChainKey, MessageKeys, RootKey};
 use crate::{IdentityKey, KeyPair, PrivateKey, PublicKey, SignalProtocolError};
 
 use crate::consts;
-use crate::proto::storage::session_structure;
-use crate::proto::storage::{RecordStructure, SessionStructure};
+use crate::proto::storage::{session_structure, RecordStructure, SessionStructure};
 use crate::state::{PreKeyId, SignedPreKeyId};
 
 /// A distinct error type to keep from accidentally propagating deserialization errors.
@@ -232,7 +231,6 @@ impl SessionState {
             sender_ratchet_key_private: vec![],
             chain_key: Some(chain_key),
             message_keys: vec![],
-            needs_pni_signature: false,
         };
 
         self.session.receiver_chains.push(chain);
@@ -259,7 +257,6 @@ impl SessionState {
             sender_ratchet_key_private: sender.private_key.serialize().to_vec(),
             chain_key: Some(chain_key),
             message_keys: vec![],
-            needs_pni_signature: false,
         };
 
         self.session.sender_chain = Some(new_chain);
@@ -302,7 +299,6 @@ impl SessionState {
                 sender_ratchet_key_private: vec![],
                 chain_key: Some(chain_key),
                 message_keys: vec![],
-                needs_pni_signature: false,
             },
             Some(mut c) => {
                 c.chain_key = Some(chain_key);
@@ -404,8 +400,9 @@ impl SessionState {
         signed_pre_key_id: SignedPreKeyId,
         base_key: &PublicKey,
     ) {
+        let signed_pre_key_id: u32 = signed_pre_key_id.into();
         let pending = session_structure::PendingPreKey {
-            pre_key_id: pre_key_id.unwrap_or(0),
+            pre_key_id: pre_key_id.map(PreKeyId::into).unwrap_or(0),
             signed_pre_key_id: signed_pre_key_id as i32,
             base_key: base_key.serialize().to_vec(),
         };
@@ -419,9 +416,9 @@ impl SessionState {
             Ok(Some(UnacknowledgedPreKeyMessageItems::new(
                 match pending_pre_key.pre_key_id {
                     0 => None,
-                    v => Some(v),
+                    v => Some(v.into()),
                 },
-                pending_pre_key.signed_pre_key_id as SignedPreKeyId,
+                (pending_pre_key.signed_pre_key_id as u32).into(),
                 PublicKey::deserialize(&pending_pre_key.base_key)
                     .map_err(|_| InvalidSessionError("invalid pending PreKey message base key"))?,
             )))
@@ -448,26 +445,6 @@ impl SessionState {
 
     pub(crate) fn local_registration_id(&self) -> u32 {
         self.session.local_registration_id
-    }
-
-    pub(crate) fn needs_pni_signature(&self) -> bool {
-        self.session
-            .sender_chain
-            .as_ref()
-            .map_or(false, |chain| chain.needs_pni_signature)
-    }
-
-    pub(crate) fn set_needs_pni_signature(
-        &mut self,
-        needs_pni_signature: bool,
-    ) -> Result<(), InvalidSessionError> {
-        let chain = &mut self
-            .session
-            .sender_chain
-            .as_mut()
-            .ok_or(InvalidSessionError("missing sender chain"))?;
-        chain.needs_pni_signature = needs_pni_signature;
-        Ok(())
     }
 }
 
@@ -686,33 +663,6 @@ impl SessionRecord {
             Some(session) => Ok(session.has_sender_chain()?),
             None => Ok(false),
         }
-    }
-
-    pub fn needs_pni_signature(&self) -> Result<bool, SignalProtocolError> {
-        Ok(self
-            .session_state()
-            .ok_or_else(|| {
-                SignalProtocolError::InvalidState(
-                    "needs_pni_signature",
-                    "No current session".into(),
-                )
-            })?
-            .needs_pni_signature())
-    }
-
-    pub fn set_needs_pni_signature(
-        &mut self,
-        needs_pni_signature: bool,
-    ) -> Result<(), SignalProtocolError> {
-        Ok(self
-            .session_state_mut()
-            .ok_or_else(|| {
-                SignalProtocolError::InvalidState(
-                    "set_needs_pni_signature",
-                    "No current session".into(),
-                )
-            })?
-            .set_needs_pni_signature(needs_pni_signature)?)
     }
 
     pub fn alice_base_key(&self) -> Result<&[u8], SignalProtocolError> {

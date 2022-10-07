@@ -1,24 +1,26 @@
 //
-// Copyright 2020-2021 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import { assert } from 'chai';
 import { toUUID } from '../zkgroup/internal/UUIDUtil';
 
-import ServerSecretParams from '../zkgroup/ServerSecretParams';
-import ServerZkAuthOperations from '../zkgroup/auth/ServerZkAuthOperations';
-import GroupMasterKey from '../zkgroup/groups/GroupMasterKey';
-import GroupSecretParams from '../zkgroup/groups/GroupSecretParams';
-import ClientZkAuthOperations from '../zkgroup/auth/ClientZkAuthOperations';
-import ClientZkGroupCipher from '../zkgroup/groups/ClientZkGroupCipher';
-import ServerZkProfileOperations from '../zkgroup/profiles/ServerZkProfileOperations';
-import ClientZkProfileOperations from '../zkgroup/profiles/ClientZkProfileOperations';
-import ProfileKey from '../zkgroup/profiles/ProfileKey';
-import ProfileKeyVersion from '../zkgroup/profiles/ProfileKeyVersion';
-import ClientZkReceiptOperations from '../zkgroup/receipts/ClientZkReceiptOperations';
-import ServerZkReceiptOperations from '../zkgroup/receipts/ServerZkReceiptOperations';
-import ReceiptSerial from '../zkgroup/receipts/ReceiptSerial';
+import {
+  ServerSecretParams,
+  ServerZkAuthOperations,
+  GroupMasterKey,
+  GroupSecretParams,
+  ClientZkAuthOperations,
+  ClientZkGroupCipher,
+  ServerZkProfileOperations,
+  ClientZkProfileOperations,
+  ProfileKey,
+  ProfileKeyVersion,
+  ClientZkReceiptOperations,
+  ServerZkReceiptOperations,
+  ReceiptSerial,
+} from '../zkgroup/';
 
 function hexToBuffer(hex: string) {
   return Buffer.from(hex, 'hex');
@@ -197,13 +199,102 @@ describe('ZKGroup', () => {
       uuidCiphertext.serialize(),
       uuidCiphertextRecv.serialize()
     );
-    assert.strictEqual(presentation.getRedemptionTime(), redemptionTime);
+    assert.isNull(presentation.getPniCiphertext());
+    assert.deepEqual(
+      presentation.getRedemptionTime(),
+      new Date(redemptionTime * 86400 * 1000)
+    );
     serverZkAuth.verifyAuthCredentialPresentation(
       groupPublicParams,
-      presentation
+      presentation,
+      new Date(redemptionTime * 86400 * 1000)
     );
 
     assertArrayEquals(presentation.serialize(), authPresentationResult);
+  });
+
+  it('testAuthWithPniIntegration', () => {
+    const aci = toUUID(TEST_ARRAY_16);
+    const pni = toUUID(TEST_ARRAY_16_1);
+    const redemptionTime = 123456 * 86400;
+
+    // Generate keys (client's are per-group, server's are not)
+    // ---
+
+    // SERVER
+    const serverSecretParams = ServerSecretParams.generateWithRandom(
+      TEST_ARRAY_32
+    );
+    const serverPublicParams = serverSecretParams.getPublicParams();
+    const serverZkAuth = new ServerZkAuthOperations(serverSecretParams);
+
+    // CLIENT
+    const masterKey = new GroupMasterKey(TEST_ARRAY_32_1);
+    const groupSecretParams = GroupSecretParams.deriveFromMasterKey(masterKey);
+
+    assertArrayEquals(
+      groupSecretParams.getMasterKey().serialize(),
+      masterKey.serialize()
+    );
+
+    const groupPublicParams = groupSecretParams.getPublicParams();
+
+    // SERVER
+    // Issue credential
+    const authCredentialResponse = serverZkAuth.issueAuthCredentialWithPniWithRandom(
+      TEST_ARRAY_32_2,
+      aci,
+      pni,
+      redemptionTime
+    );
+
+    // CLIENT
+    // Receive credential
+    const clientZkAuthCipher = new ClientZkAuthOperations(serverPublicParams);
+    const clientZkGroupCipher = new ClientZkGroupCipher(groupSecretParams);
+    const authCredential = clientZkAuthCipher.receiveAuthCredentialWithPni(
+      aci,
+      pni,
+      redemptionTime,
+      authCredentialResponse
+    );
+
+    // Create and decrypt user entry
+    const aciCiphertext = clientZkGroupCipher.encryptUuid(aci);
+    const aciPlaintext = clientZkGroupCipher.decryptUuid(aciCiphertext);
+    assert.strictEqual(aci, aciPlaintext);
+    const pniCiphertext = clientZkGroupCipher.encryptUuid(pni);
+    const pniPlaintext = clientZkGroupCipher.decryptUuid(pniCiphertext);
+    assert.strictEqual(pni, pniPlaintext);
+
+    // Create presentation
+    const presentation = clientZkAuthCipher.createAuthCredentialWithPniPresentationWithRandom(
+      TEST_ARRAY_32_5,
+      groupSecretParams,
+      authCredential
+    );
+
+    // Verify presentation
+    assertArrayEquals(
+      aciCiphertext.serialize(),
+      presentation.getUuidCiphertext().serialize()
+    );
+    const presentationPniCiphertext = presentation.getPniCiphertext();
+    // Use a generic assertion instead of assert.isNotNull because TypeScript understands it.
+    assert(presentationPniCiphertext !== null);
+    assertArrayEquals(
+      pniCiphertext.serialize(),
+      presentationPniCiphertext.serialize()
+    );
+    assert.deepEqual(
+      presentation.getRedemptionTime(),
+      new Date(1000 * redemptionTime)
+    );
+    serverZkAuth.verifyAuthCredentialPresentation(
+      groupPublicParams,
+      presentation,
+      new Date(1000 * redemptionTime)
+    );
   });
 
   it('testProfileKeyIntegration', () => {
@@ -297,6 +388,117 @@ describe('ZKGroup', () => {
     const pkvB = profileKey.getProfileKeyVersion(uuid);
     const pkvC = new ProfileKeyVersion(pkvB.serialize());
     assertArrayEquals(pkvB.serialize(), pkvC.serialize());
+  });
+
+  it('testExpiringProfileKeyIntegration', () => {
+    const uuid = toUUID(TEST_ARRAY_16);
+
+    // Generate keys (client's are per-group, server's are not)
+    // ---
+
+    // SERVER
+    const serverSecretParams = ServerSecretParams.generateWithRandom(
+      TEST_ARRAY_32
+    );
+    const serverPublicParams = serverSecretParams.getPublicParams();
+    const serverZkProfile = new ServerZkProfileOperations(serverSecretParams);
+
+    // CLIENT
+    const masterKey = new GroupMasterKey(TEST_ARRAY_32_1);
+    const groupSecretParams = GroupSecretParams.deriveFromMasterKey(masterKey);
+
+    const groupPublicParams = groupSecretParams.getPublicParams();
+    const clientZkProfileCipher = new ClientZkProfileOperations(
+      serverPublicParams
+    );
+
+    const profileKey = new ProfileKey(TEST_ARRAY_32_1);
+    const profileKeyCommitment = profileKey.getCommitment(uuid);
+
+    // Create context and request
+    const context = clientZkProfileCipher.createProfileKeyCredentialRequestContextWithRandom(
+      TEST_ARRAY_32_3,
+      uuid,
+      profileKey
+    );
+    const request = context.getRequest();
+
+    // SERVER
+    const now = Math.floor(Date.now() / 1000);
+    const startOfDay = now - (now % 86400);
+    const expiration = startOfDay + 5 * 86400;
+    const response = serverZkProfile.issueExpiringProfileKeyCredentialWithRandom(
+      TEST_ARRAY_32_4,
+      request,
+      uuid,
+      profileKeyCommitment,
+      expiration
+    );
+
+    // CLIENT
+    // Gets stored profile credential
+    const clientZkGroupCipher = new ClientZkGroupCipher(groupSecretParams);
+    const profileKeyCredential = clientZkProfileCipher.receiveExpiringProfileKeyCredential(
+      context,
+      response
+    );
+
+    // Create encrypted UID and profile key
+    const uuidCiphertext = clientZkGroupCipher.encryptUuid(uuid);
+    const plaintext = clientZkGroupCipher.decryptUuid(uuidCiphertext);
+    assert.strictEqual(plaintext, uuid);
+
+    const profileKeyCiphertext = clientZkGroupCipher.encryptProfileKey(
+      profileKey,
+      uuid
+    );
+    const decryptedProfileKey = clientZkGroupCipher.decryptProfileKey(
+      profileKeyCiphertext,
+      uuid
+    );
+    assertArrayEquals(profileKey.serialize(), decryptedProfileKey.serialize());
+    assert.deepEqual(
+      profileKeyCredential.getExpirationTime(),
+      new Date(expiration * 1000)
+    );
+
+    const presentation = clientZkProfileCipher.createExpiringProfileKeyCredentialPresentationWithRandom(
+      TEST_ARRAY_32_5,
+      groupSecretParams,
+      profileKeyCredential
+    );
+
+    // Verify presentation
+    serverZkProfile.verifyProfileKeyCredentialPresentation(
+      groupPublicParams,
+      presentation
+    );
+    serverZkProfile.verifyProfileKeyCredentialPresentation(
+      groupPublicParams,
+      presentation,
+      new Date(expiration * 1000 - 5)
+    );
+    const uuidCiphertextRecv = presentation.getUuidCiphertext();
+    assertArrayEquals(
+      uuidCiphertext.serialize(),
+      uuidCiphertextRecv.serialize()
+    );
+
+    // Test expiration
+    assert.throws(() =>
+      serverZkProfile.verifyProfileKeyCredentialPresentation(
+        groupPublicParams,
+        presentation,
+        new Date(expiration * 1000)
+      )
+    );
+    assert.throws(() =>
+      serverZkProfile.verifyProfileKeyCredentialPresentation(
+        groupPublicParams,
+        presentation,
+        new Date(expiration * 1000 + 5)
+      )
+    );
   });
 
   it('testPniIntegration', () => {
@@ -488,7 +690,7 @@ describe('ZKGroup', () => {
     const request = context.getRequest();
 
     // issuance server
-    const receiptExpirationTime = BigInt('31337');
+    const receiptExpirationTime = 31337;
     const receiptLevel = BigInt('3');
     const response = serverOps.issueReceiptCredential(
       request,

@@ -1,5 +1,5 @@
 //
-// Copyright 2020 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -7,7 +7,8 @@
 
 use crate::common::sho::*;
 use crate::crypto::credentials::{
-    BlindedPniCredential, BlindedProfileKeyCredential, PniCredential, ProfileKeyCredential,
+    BlindedExpiringProfileKeyCredential, BlindedPniCredential, BlindedProfileKeyCredential,
+    ExpiringProfileKeyCredential, PniCredential, ProfileKeyCredential,
 };
 use crate::crypto::profile_key_struct;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
@@ -15,7 +16,7 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyPair {
     // private
     pub(crate) y: Scalar,
@@ -24,12 +25,12 @@ pub struct KeyPair {
     pub(crate) Y: RistrettoPoint,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicKey {
     pub(crate) Y: RistrettoPoint,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CiphertextWithSecretNonce {
     pub(crate) r1: Scalar,
     pub(crate) r2: Scalar,
@@ -39,7 +40,7 @@ pub struct CiphertextWithSecretNonce {
     pub(crate) E2: RistrettoPoint,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ciphertext {
     pub(crate) D1: RistrettoPoint,
     pub(crate) D2: RistrettoPoint,
@@ -89,6 +90,19 @@ impl KeyPair {
         ProfileKeyCredential {
             t: blinded_profile_key_credential.t,
             U: blinded_profile_key_credential.U,
+            V,
+        }
+    }
+
+    pub fn decrypt_blinded_expiring_profile_key_credential(
+        &self,
+        blinded_expiring_profile_key_credential: BlindedExpiringProfileKeyCredential,
+    ) -> ExpiringProfileKeyCredential {
+        let V = blinded_expiring_profile_key_credential.S2
+            - self.y * blinded_expiring_profile_key_credential.S1;
+        ExpiringProfileKeyCredential {
+            t: blinded_expiring_profile_key_credential.t,
+            U: blinded_expiring_profile_key_credential.U,
             V,
         }
     }

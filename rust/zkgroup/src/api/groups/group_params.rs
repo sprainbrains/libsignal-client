@@ -5,13 +5,13 @@
 
 use std::convert::TryInto;
 
-use crate::api;
 use crate::common::constants::*;
 use crate::common::errors::*;
 use crate::common::sho::*;
 use crate::common::simple_types::*;
-use crate::crypto;
-use aead::{generic_array::GenericArray, Aead, NewAead};
+use crate::{api, crypto};
+use aead::generic_array::GenericArray;
+use aead::{Aead, NewAead};
 use aes_gcm_siv::Aes256GcmSiv;
 use serde::{Deserialize, Serialize};
 
@@ -221,7 +221,7 @@ impl GroupSecretParams {
 
     fn encrypt_blob_aesgcmsiv(&self, key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Vec<u8> {
         let key = GenericArray::from_slice(key);
-        let aead_cipher = Aes256GcmSiv::new(&*key);
+        let aead_cipher = Aes256GcmSiv::new(key);
         let nonce = GenericArray::from_slice(nonce);
         aead_cipher
             .encrypt(nonce, plaintext)
@@ -239,7 +239,7 @@ impl GroupSecretParams {
             return Err(ZkGroupVerificationFailure);
         }
         let key = GenericArray::from_slice(key);
-        let aead_cipher = Aes256GcmSiv::new(&*key);
+        let aead_cipher = Aes256GcmSiv::new(key);
         let nonce = GenericArray::from_slice(nonce);
         match aead_cipher.decrypt(nonce, ciphertext) {
             Ok(plaintext_vec) => Ok(plaintext_vec),

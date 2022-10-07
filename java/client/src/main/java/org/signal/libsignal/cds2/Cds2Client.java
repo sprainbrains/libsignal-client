@@ -33,20 +33,11 @@ import java.time.Instant;
 public class Cds2Client implements NativeHandleGuard.Owner {
   private final long unsafeHandle;
 
-  /**
-   * Until attestation verification is fully implemented, this client must not be used in production builds
-   */
-  public static Cds2Client create_NOT_FOR_PRODUCTION(
-      byte[] mrenclave, byte[] caCert, byte[] attestationMsg, Instant earliestValidInstant)
-      throws AttestationDataException {
-    return new Cds2Client(mrenclave, caCert, attestationMsg, earliestValidInstant);
+  public Cds2Client(byte[] mrenclave, byte[] attestationMsg, Instant currentInstant) throws AttestationDataException {
+    this.unsafeHandle = Native.Cds2ClientState_New(mrenclave, attestationMsg, currentInstant.toEpochMilli());
   }
 
-  private Cds2Client(byte[] mrenclave, byte[] caCert, byte[] attestationMsg, Instant earliestValidInstant) throws AttestationDataException {
-    this.unsafeHandle = Native.Cds2ClientState_New(mrenclave, caCert, attestationMsg, earliestValidInstant.toEpochMilli());
-  }
-
-  @Override
+  @Override @SuppressWarnings("deprecation")
   protected void finalize() {
     Native.Cds2ClientState_Destroy(this.unsafeHandle);
   }

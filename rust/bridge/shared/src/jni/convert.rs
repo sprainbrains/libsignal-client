@@ -1,9 +1,9 @@
 //
-// Copyright 2020 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-use jni::objects::{JObject, JString};
+use jni::objects::{JMap, JObject, JString};
 use jni::sys::{jbyte, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
 use libsignal_protocol::*;
@@ -189,6 +189,23 @@ impl<'a> SimpleArgTypeInfo<'a> for crate::protocol::Timestamp {
     }
 }
 
+/// Supports values `0..=Long.MAX_VALUE`.
+///
+/// Negative `long` values are *not* reinterpreted as large `u64` values.
+/// Note that this is different from the implementation of [`ResultTypeInfo`] for `u64`.
+impl<'a> SimpleArgTypeInfo<'a> for crate::zkgroup::Timestamp {
+    type ArgType = jlong;
+    fn convert_from(_env: &JNIEnv, foreign: jlong) -> SignalJniResult<Self> {
+        if foreign < 0 {
+            return Err(SignalJniError::IntegerOverflow(format!(
+                "{} to Timestamp (u64)",
+                foreign
+            )));
+        }
+        Ok(Self::from_seconds(foreign as u64))
+    }
+}
+
 /// Supports all valid byte values `0..=255`.
 impl<'a> SimpleArgTypeInfo<'a> for u8 {
     type ArgType = jint;
@@ -200,13 +217,6 @@ impl<'a> SimpleArgTypeInfo<'a> for u8 {
             ))),
             Ok(v) => Ok(v),
         }
-    }
-}
-
-impl<'a> SimpleArgTypeInfo<'a> for bool {
-    type ArgType = jboolean;
-    fn convert_from(_env: &JNIEnv, foreign: jboolean) -> SignalJniResult<Self> {
-        Ok(foreign != 0)
     }
 }
 
@@ -404,6 +414,37 @@ impl<'a> SimpleArgTypeInfo<'a> for CiphertextMessageRef<'a> {
     }
 }
 
+#[cfg(not(target_os = "android"))]
+impl ResultTypeInfo for crate::cds2::Cds2Metrics {
+    type ResultType = jobject;
+
+    fn convert_into(self, env: &JNIEnv) -> SignalJniResult<Self::ResultType> {
+        let map_args = jni_args!(() -> void);
+        let jobj = env.new_object(
+            env.find_class(jni_class_name!(java.util.HashMap))?,
+            map_args.sig,
+            &map_args.args,
+        )?;
+        let jmap = JMap::from_env(env, jobj)?;
+
+        let long_class = env.find_class(jni_class_name!(java.lang.Long))?;
+        for (k, v) in self.0 {
+            let args = jni_args!((v => long) -> void);
+            jmap.put(
+                String::convert_into_jobject(&k.convert_into(env)),
+                env.new_object(long_class, args.sig, &args.args)?,
+            )?;
+        }
+        Ok(jmap.into_inner())
+    }
+
+    fn convert_into_jobject(signal_jni_result: &SignalJniResult<Self::ResultType>) -> JObject {
+        signal_jni_result
+            .as_ref()
+            .map_or(JObject::null(), |&jobj| JObject::from(jobj))
+    }
+}
+
 impl ResultTypeInfo for bool {
     type ResultType = jboolean;
     fn convert_into(self, _env: &JNIEnv) -> SignalJniResult<Self::ResultType> {
@@ -473,6 +514,20 @@ impl ResultTypeInfo for crate::protocol::Timestamp {
     fn convert_into(self, _env: &JNIEnv) -> SignalJniResult<Self::ResultType> {
         // Note that we don't check bounds here.
         Ok(self.as_millis() as jlong)
+    }
+    fn convert_into_jobject(_signal_jni_result: &SignalJniResult<Self::ResultType>) -> JObject {
+        JObject::null()
+    }
+}
+
+/// Reinterprets the bits of the timestamp's `u64` as a Java `long`.
+///
+/// Note that this is different from the implementation of [`ArgTypeInfo`] for `Timestamp`.
+impl ResultTypeInfo for crate::zkgroup::Timestamp {
+    type ResultType = jlong;
+    fn convert_into(self, _env: &JNIEnv) -> SignalJniResult<Self::ResultType> {
+        // Note that we don't check bounds here.
+        Ok(self.as_seconds() as jlong)
     }
     fn convert_into_jobject(_signal_jni_result: &SignalJniResult<Self::ResultType>) -> JObject {
         JObject::null()
@@ -988,9 +1043,6 @@ macro_rules! jni_arg_type {
     (u64) => {
         jni::jlong
     };
-    (bool) => {
-        jni::jboolean
-    };
     (String) => {
         jni::JString
     };
@@ -1103,6 +1155,9 @@ macro_rules! jni_result_type {
     };
     (Vec<u8>) => {
         jni::jbyteArray
+    };
+    (Cds2Metrics) => {
+        jni::JavaReturnMap
     };
     ([u8; $len:expr]) => {
         jni::jbyteArray

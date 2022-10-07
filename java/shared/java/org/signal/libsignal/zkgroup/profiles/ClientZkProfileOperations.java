@@ -1,11 +1,12 @@
 //
-// Copyright 2020-2021 Signal Messenger, LLC.
+// Copyright 2020-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
 package org.signal.libsignal.zkgroup.profiles;
 
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.UUID;
 import org.signal.libsignal.zkgroup.InvalidInputException;
 import org.signal.libsignal.zkgroup.ServerPublicParams;
@@ -40,10 +41,18 @@ public class ClientZkProfileOperations {
     }
   }
 
+  /**
+   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
+   */
+  @Deprecated
   public PniCredentialRequestContext createPniCredentialRequestContext(UUID aci, UUID pni, ProfileKey profileKey) {
     return createPniCredentialRequestContext(new SecureRandom(), aci, pni, profileKey);
   }
 
+  /**
+   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
+   */
+  @Deprecated
   public PniCredentialRequestContext createPniCredentialRequestContext(SecureRandom secureRandom, UUID aci, UUID pni, ProfileKey profileKey) {
     byte[] random = new byte[RANDOM_LENGTH];
     secureRandom.nextBytes(random);
@@ -71,6 +80,28 @@ public class ClientZkProfileOperations {
     }
   }
 
+  public ExpiringProfileKeyCredential receiveExpiringProfileKeyCredential(ProfileKeyCredentialRequestContext profileKeyCredentialRequestContext, ExpiringProfileKeyCredentialResponse profileKeyCredentialResponse) throws VerificationFailedException {
+    return receiveExpiringProfileKeyCredential(profileKeyCredentialRequestContext, profileKeyCredentialResponse, Instant.now());
+  }
+
+  public ExpiringProfileKeyCredential receiveExpiringProfileKeyCredential(ProfileKeyCredentialRequestContext profileKeyCredentialRequestContext, ExpiringProfileKeyCredentialResponse profileKeyCredentialResponse, Instant now) throws VerificationFailedException {
+    if (profileKeyCredentialResponse == null) {
+      throw new VerificationFailedException();
+    }
+
+    byte[] newContents = Native.ServerPublicParams_ReceiveExpiringProfileKeyCredential(serverPublicParams.getInternalContentsForJNI(), profileKeyCredentialRequestContext.getInternalContentsForJNI(), profileKeyCredentialResponse.getInternalContentsForJNI(), now.getEpochSecond());
+
+    try {
+      return new ExpiringProfileKeyCredential(newContents);
+    } catch (InvalidInputException e) {
+      throw new AssertionError(e);
+    }
+  }
+
+  /**
+   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
+   */
+  @Deprecated
   public PniCredential receivePniCredential(PniCredentialRequestContext requestContext, PniCredentialResponse response) throws VerificationFailedException {
     if (response == null) {
       throw new VerificationFailedException();
@@ -102,10 +133,35 @@ public class ClientZkProfileOperations {
     }
   }
 
+  public ProfileKeyCredentialPresentation createProfileKeyCredentialPresentation(GroupSecretParams groupSecretParams, ExpiringProfileKeyCredential profileKeyCredential) {
+    return createProfileKeyCredentialPresentation(new SecureRandom(), groupSecretParams, profileKeyCredential);
+  }
+
+  public ProfileKeyCredentialPresentation createProfileKeyCredentialPresentation(SecureRandom secureRandom, GroupSecretParams groupSecretParams, ExpiringProfileKeyCredential profileKeyCredential) {
+    byte[] random      = new byte[RANDOM_LENGTH];
+    secureRandom.nextBytes(random);
+
+    byte[] newContents = Native.ServerPublicParams_CreateExpiringProfileKeyCredentialPresentationDeterministic(serverPublicParams.getInternalContentsForJNI(), random, groupSecretParams.getInternalContentsForJNI(), profileKeyCredential.getInternalContentsForJNI());
+
+    try {
+      return new ProfileKeyCredentialPresentation(newContents);
+    } catch (InvalidInputException e) {
+      throw new AssertionError(e);
+    }
+  }
+
+  /**
+   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
+   */
+  @Deprecated
   public PniCredentialPresentation createPniCredentialPresentation(GroupSecretParams groupSecretParams, PniCredential credential) {
     return createPniCredentialPresentation(new SecureRandom(), groupSecretParams, credential);
   }
 
+  /**
+   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
+   */
+  @Deprecated
   public PniCredentialPresentation createPniCredentialPresentation(SecureRandom secureRandom, GroupSecretParams groupSecretParams, PniCredential credential) {
     byte[] random = new byte[RANDOM_LENGTH];
     secureRandom.nextBytes(random);

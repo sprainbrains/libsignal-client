@@ -1,5 +1,5 @@
 //
-// Copyright 2021 Signal Messenger, LLC.
+// Copyright 2021-2022 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -700,28 +700,25 @@ describe('SignalClient', () => {
     assert.deepEqual(aDPlaintext, bMessage);
 
     const session = await bSess.getSession(aAddress);
+    assert(session !== null);
 
-    if (session != null) {
-      assert(session.serialize().length > 0);
-      assert.deepEqual(session.localRegistrationId(), 5);
-      assert.deepEqual(session.remoteRegistrationId(), 5);
-      assert(session.hasCurrentState());
-      assert(
-        !session.currentRatchetKeyMatches(
-          SignalClient.PrivateKey.generate().getPublicKey()
-        )
-      );
+    assert(session.serialize().length > 0);
+    assert.deepEqual(session.localRegistrationId(), 5);
+    assert.deepEqual(session.remoteRegistrationId(), 5);
+    assert(session.hasCurrentState());
+    assert(
+      !session.currentRatchetKeyMatches(
+        SignalClient.PrivateKey.generate().getPublicKey()
+      )
+    );
 
-      session.archiveCurrentState();
-      assert(!session.hasCurrentState());
-      assert(
-        !session.currentRatchetKeyMatches(
-          SignalClient.PrivateKey.generate().getPublicKey()
-        )
-      );
-    } else {
-      assert.fail('no session found');
-    }
+    session.archiveCurrentState();
+    assert(!session.hasCurrentState());
+    assert(
+      !session.currentRatchetKeyMatches(
+        SignalClient.PrivateKey.generate().getPublicKey()
+      )
+    );
   });
   it('handles duplicated messages', async () => {
     const aKeys = new InMemoryIdentityKeyStore();
@@ -872,71 +869,6 @@ describe('SignalClient', () => {
       assert.exists(err.stack); // Make sure we're still getting the benefits of Error.
     }
   });
-
-  it('handles the needsPniSignature flag', async () => {
-    const aKeys = new InMemoryIdentityKeyStore();
-    const bKeys = new InMemoryIdentityKeyStore();
-
-    const aSess = new InMemorySessionStore();
-
-    const bPreK = new InMemoryPreKeyStore();
-    const bSPreK = new InMemorySignedPreKeyStore();
-
-    const bPreKey = SignalClient.PrivateKey.generate();
-    const bSPreKey = SignalClient.PrivateKey.generate();
-
-    const bIdentityKey = await bKeys.getIdentityKey();
-    const bSignedPreKeySig = bIdentityKey.sign(
-      bSPreKey.getPublicKey().serialize()
-    );
-
-    const bAddress = SignalClient.ProtocolAddress.new('+19192222222', 1);
-
-    const bRegistrationId = await bKeys.getLocalRegistrationId();
-    const bPreKeyId = 31337;
-    const bSignedPreKeyId = 22;
-
-    const bPreKeyBundle = SignalClient.PreKeyBundle.new(
-      bRegistrationId,
-      bAddress.deviceId(),
-      bPreKeyId,
-      bPreKey.getPublicKey(),
-      bSignedPreKeyId,
-      bSPreKey.getPublicKey(),
-      bSignedPreKeySig,
-      bIdentityKey.getPublicKey()
-    );
-
-    const bPreKeyRecord = SignalClient.PreKeyRecord.new(
-      bPreKeyId,
-      bPreKey.getPublicKey(),
-      bPreKey
-    );
-    bPreK.savePreKey(bPreKeyId, bPreKeyRecord);
-
-    const bSPreKeyRecord = SignalClient.SignedPreKeyRecord.new(
-      bSignedPreKeyId,
-      42, // timestamp
-      bSPreKey.getPublicKey(),
-      bSPreKey,
-      bSignedPreKeySig
-    );
-    bSPreK.saveSignedPreKey(bSignedPreKeyId, bSPreKeyRecord);
-
-    await SignalClient.processPreKeyBundle(
-      bPreKeyBundle,
-      bAddress,
-      aSess,
-      aKeys
-    );
-
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const session = (await aSess.getSession(bAddress))!;
-    assert(!session.needsPniSignature());
-    session.setNeedsPniSignature(true);
-    assert(session.needsPniSignature());
-  });
-
   describe('SealedSender', () => {
     it('can encrypt/decrypt 1-1 messages', async () => {
       const aKeys = new InMemoryIdentityKeyStore();
@@ -1050,13 +982,10 @@ describe('SignalClient', () => {
       );
 
       assert(bPlaintext != null);
-
-      if (bPlaintext != null) {
-        assert.deepEqual(bPlaintext.message(), aPlaintext);
-        assert.deepEqual(bPlaintext.senderE164(), aE164);
-        assert.deepEqual(bPlaintext.senderUuid(), aUuid);
-        assert.deepEqual(bPlaintext.deviceId(), aDeviceId);
-      }
+      assert.deepEqual(bPlaintext.message(), aPlaintext);
+      assert.deepEqual(bPlaintext.senderE164(), aE164);
+      assert.deepEqual(bPlaintext.senderUuid(), aUuid);
+      assert.deepEqual(bPlaintext.deviceId(), aDeviceId);
 
       const innerMessage = await SignalClient.signalEncrypt(
         aPlaintext,
@@ -1730,6 +1659,15 @@ describe('SignalClient', () => {
     assert.deepEqual(anotherKey.compare(pub), -1);
 
     assert.lengthOf(pub.getPublicKeyBytes(), 32);
+
+    const keyPair = new SignalClient.IdentityKeyPair(pub, priv);
+    const keyPairBytes = keyPair.serialize();
+    const roundTripKeyPair = SignalClient.IdentityKeyPair.deserialize(
+      keyPairBytes
+    );
+    assert.equal(roundTripKeyPair.publicKey.compare(pub), 0);
+    const roundTripKeyPairBytes = roundTripKeyPair.serialize();
+    assert.deepEqual(keyPairBytes, roundTripKeyPairBytes);
   });
 
   it('decoding invalid ECC key throws an error', () => {

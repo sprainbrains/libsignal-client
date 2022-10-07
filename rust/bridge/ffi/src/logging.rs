@@ -73,7 +73,7 @@ impl log::Log for FfiLogger {
             .file()
             .map(|file| CString::new(file).expect("no 0 bytes in file"));
         let message = CString::new(record.args().to_string()).unwrap_or_else(|_| {
-            CString::new(record.args().to_string().replace("\0", "\\0"))
+            CString::new(record.args().to_string().replace('\0', "\\0"))
                 .expect("We escaped any NULLs")
         });
         (self.log)(
@@ -101,7 +101,9 @@ pub unsafe extern "C" fn signal_init_logger(max_level: LogLevel, logger: FfiLogg
                 "Initializing libsignal version:{}",
                 env!("CARGO_PKG_VERSION")
             );
-            log_panics::init();
+            log_panics::Config::new()
+                .backtrace_mode(log_panics::BacktraceMode::Unresolved)
+                .install_panic_hook();
         }
         Err(_) => {
             log::warn!("logging already initialized for libsignal; ignoring later call");

@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#[cfg(all(not(target_os = "android"), feature = "jni"))]
+use std::collections::HashMap;
 use std::panic::RefUnwindSafe;
 
 use ::attest::cds2;
@@ -14,6 +16,9 @@ use crate::*;
 use ::attest::cds2::Result;
 use ::attest::client_connection;
 
+// It's okay to have a large enum because this type will be boxed for bridging after it's been
+// created.
+#[allow(clippy::large_enum_variant)]
 pub enum Cds2ClientState {
     ConnectionEstablishment(cds2::ClientConnectionEstablishment),
     Connection(client_connection::ClientConnection),
@@ -25,17 +30,11 @@ impl RefUnwindSafe for Cds2ClientState {}
 impl Cds2ClientState {
     pub fn new(
         mrenclave: &[u8],
-        ca_cert: &[u8],
         attestation_msg: &[u8],
-        earliest_valid_time: std::time::SystemTime,
+        current_time: std::time::SystemTime,
     ) -> Result<Self> {
         Ok(Cds2ClientState::ConnectionEstablishment(
-            cds2::ClientConnectionEstablishment::new(
-                mrenclave,
-                ca_cert,
-                attestation_msg,
-                earliest_valid_time,
-            )?,
+            cds2::ClientConnectionEstablishment::new(mrenclave, attestation_msg, current_time)?,
         ))
     }
 
@@ -81,16 +80,14 @@ bridge_handle!(Cds2ClientState, clone = false, mut = true);
 #[bridge_fn]
 fn Cds2ClientState_New(
     mrenclave: &[u8],
-    ca_cert: &[u8],
     attestation_msg: &[u8],
-    earliest_valid_timestamp: Timestamp,
+    current_timestamp: Timestamp,
 ) -> Result<Cds2ClientState> {
     Cds2ClientState::new(
         mrenclave,
-        ca_cert,
         attestation_msg,
         std::time::SystemTime::UNIX_EPOCH
-            + std::time::Duration::from_millis(earliest_valid_timestamp.as_millis()),
+            + std::time::Duration::from_millis(current_timestamp.as_millis()),
     )
 }
 
@@ -120,4 +117,13 @@ fn Cds2ClientState_EstablishedRecv(
     received_ciphertext: &[u8],
 ) -> Result<Vec<u8>> {
     cli.established_recv(received_ciphertext)
+}
+
+#[cfg(all(not(target_os = "android"), feature = "jni"))]
+pub struct Cds2Metrics(pub HashMap<String, i64>);
+
+#[cfg(not(target_os = "android"))]
+#[bridge_fn(ffi = false, node = false)]
+fn Cds2Metrics_extract(attestation_msg: &[u8]) -> Result<Cds2Metrics> {
+    cds2::extract_metrics(attestation_msg).map(Cds2Metrics)
 }

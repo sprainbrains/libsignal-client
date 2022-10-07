@@ -24,7 +24,7 @@ public class SessionRecord implements NativeHandleGuard.Owner {
 
   private final long unsafeHandle;
 
-  @Override
+  @Override @SuppressWarnings("deprecation")
   protected void finalize() {
     Native.SessionRecord_Destroy(this.unsafeHandle);
   }
@@ -101,29 +101,6 @@ public class SessionRecord implements NativeHandleGuard.Owner {
   public boolean hasSenderChain() {
     try (NativeHandleGuard guard = new NativeHandleGuard(this)) {
       return Native.SessionRecord_HasSenderChain(guard.nativeHandle());
-    }
-  }
-
-  /**
-   * Returns true if this session was initialized needing a PNI signature and has not received a
-   * reply.
-   * <p>
-   * Precondition: `this.hasSenderChain()`
-   */
-  public boolean needsPniSignature() {
-    try (NativeHandleGuard guard = new NativeHandleGuard(this)) {
-      return Native.SessionRecord_NeedsPniSignature(guard.nativeHandle());
-    }
-  }
-
-  /**
-   * Marks whether this session needs a PNI signature included in outgoing messages.
-   * <p>
-   * Precondition: `this.hasSenderChain()`
-   */
-  public void setNeedsPniSignature(boolean needsPniSignature) {
-    try (NativeHandleGuard guard = new NativeHandleGuard(this)) {
-      Native.SessionRecord_SetNeedsPniSignature(guard.nativeHandle(), needsPniSignature);
     }
   }
 
