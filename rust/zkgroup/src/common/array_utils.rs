@@ -19,8 +19,15 @@ pub trait ArrayLike<T>: Index<usize, Output = T> {
 
 impl<T, const LEN: usize> ArrayLike<T> for [T; LEN] {
     const LEN: usize = LEN;
+    #[allow(unsafe_code)]
     fn create(mut create_element: impl FnMut() -> T) -> Self {
-        [0; LEN].map(|_| create_element())
+        unsafe {
+            let mut arr: [T; LEN] = std::mem::uninitialized();
+            for item in arr.iter_mut() {
+                std::ptr::write(item, create_element());
+            }
+            arr
+        }
     }
     fn iter(&self) -> std::slice::Iter<T> {
         self[..].iter()
