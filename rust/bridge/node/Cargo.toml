@@ -5,8 +5,8 @@
 
 [package]
 name = "libsignal-node"
-version = "0.20.0"
-authors = ["Jordan Rose <jrose@signal.org>", "Jack Lloyd <jack@signal.org>"]
+version = "0.21.1"
+authors = ["Signal Messenger LLC"]
 license = "AGPL-3.0-only"
 edition = "2018"
 

@@ -5,8 +5,8 @@
 
 [package]
 name = "libsignal-jni"
-version = "0.20.0"
-authors = ["Jack Lloyd <jack@signal.org>"]
+version = "0.21.1"
+authors = ["Signal Messenger LLC"]
 edition = "2018"
 license = "AGPL-3.0-only"
 

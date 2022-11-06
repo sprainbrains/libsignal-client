@@ -5,16 +5,19 @@
 
 Pod::Spec.new do |s|
   s.name             = 'LibSignalClient'
-  s.version          = '0.20.0'
+  s.version          = '0.21.1'
   s.summary          = 'A Swift wrapper library for communicating with the Signal messaging service.'
 
   s.homepage         = 'https://github.com/signalapp/libsignal'
   s.license          = 'AGPL-3.0-only'
-  s.author           = { 'Signal Developers' => 'ios@signal.org' }
+  s.author           = 'Signal Messenger LLC'
   s.source           = { :git => 'https://github.com/signalapp/libsignal.git', :tag => "v#{s.version}" }
 
   s.swift_version    = '5'
-  s.platform         = :ios, '10'
+  # We use this to set IPHONEOS_DEPLOYMENT_TARGET below.
+  # The Rust compiler driver expects this to always be in the form 'major.minor'.
+  min_deployment_target = '12.2'
+  s.platform         = :ios, min_deployment_target
 
   s.dependency 'SignalCoreKit'
 
@@ -67,8 +70,9 @@ Pod::Spec.new do |s|
     }
   ]
 
-  s.prepare_command = %q(
+  s.prepare_command = %Q(
     set -euo pipefail
+    export IPHONEOS_DEPLOYMENT_TARGET=#{min_deployment_target}
     CARGO_BUILD_TARGET=aarch64-apple-ios swift/build_ffi.sh --release
     CARGO_BUILD_TARGET=x86_64-apple-ios swift/build_ffi.sh --release
     CARGO_BUILD_TARGET=aarch64-apple-ios-sim swift/build_ffi.sh --release
