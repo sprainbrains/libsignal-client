@@ -230,7 +230,7 @@ pub fn v2(c: &mut Criterion) {
     }
 
     let mut group = c.benchmark_group("v2/encrypt/multi-recipient");
-    for recipient_count in [2, 5, 10] {
+    for recipient_count in vec![2, 5, 10] {
         group.bench_with_input(
             BenchmarkId::from_parameter(recipient_count),
             &recipient_count,
@@ -258,7 +258,7 @@ pub fn v2(c: &mut Criterion) {
     group.finish();
 
     let mut group = c.benchmark_group("v2/encrypt/multi-device");
-    for device_count in [2, 5, 10] {
+    for device_count in vec![2, 5, 10] {
         group.bench_with_input(
             BenchmarkId::from_parameter(device_count),
             &device_count,
