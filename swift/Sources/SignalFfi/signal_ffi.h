@@ -167,6 +167,13 @@ typedef enum {
   SignalErrorCode_DuplicatedMessage = 90,
   SignalErrorCode_CallbackError = 100,
   SignalErrorCode_VerificationFailure = 110,
+  SignalErrorCode_UsernameCannotBeEmpty = 120,
+  SignalErrorCode_UsernameCannotStartWithDigit = 121,
+  SignalErrorCode_UsernameMissingSeparator = 122,
+  SignalErrorCode_UsernameBadDiscriminator = 123,
+  SignalErrorCode_UsernameBadCharacter = 124,
+  SignalErrorCode_UsernameTooShort = 125,
+  SignalErrorCode_UsernameTooLong = 126,
 } SignalErrorCode;
 
 /**
@@ -1076,6 +1083,10 @@ SignalFfiError *signal_group_decrypt_message(const unsigned char **out,
 SignalFfiError *signal_device_transfer_generate_private_key(const unsigned char **out,
                                                             size_t *out_len);
 
+SignalFfiError *signal_device_transfer_generate_private_key_with_format(const unsigned char **out,
+                                                                        size_t *out_len,
+                                                                        uint8_t key_format);
+
 SignalFfiError *signal_device_transfer_generate_certificate(const unsigned char **out,
                                                             size_t *out_len,
                                                             SignalBorrowedBuffer private_key,
@@ -1460,5 +1471,27 @@ SignalFfiError *signal_receipt_credential_presentation_get_receipt_level(uint64_
 
 SignalFfiError *signal_receipt_credential_presentation_get_receipt_serial(uint8_t (*out)[SignalRECEIPT_SERIAL_LEN],
                                                                           const unsigned char (*presentation)[SignalRECEIPT_CREDENTIAL_PRESENTATION_LEN]);
+
+SignalFfiError *signal_verify_signature(bool *out,
+                                        SignalBorrowedBuffer cert_pem,
+                                        SignalBorrowedBuffer body,
+                                        SignalBorrowedBuffer signature,
+                                        uint64_t current_timestamp);
+
+SignalFfiError *signal_username_hash(const unsigned char **out,
+                                     size_t *out_len,
+                                     const char *username);
+
+SignalFfiError *signal_username_proof(const unsigned char **out,
+                                      size_t *out_len,
+                                      const char *username,
+                                      SignalBorrowedBuffer randomness);
+
+SignalFfiError *signal_username_verify(SignalBorrowedBuffer proof, SignalBorrowedBuffer hash);
+
+SignalFfiError *signal_username_candidates_from(const char **out,
+                                                const char *nickname,
+                                                uint32_t min_len,
+                                                uint32_t max_len);
 
 #endif /* SIGNAL_FFI_H_ */

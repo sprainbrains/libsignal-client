@@ -17,10 +17,10 @@ repositories {
 android {
     compileSdkVersion 30
     buildToolsVersion '30.0.2'
-    ndkVersion '21.0.6113669'
+    ndkVersion '25.1.8937393'
 
     defaultConfig {
-        minSdkVersion 19
+        minSdkVersion 21
         targetSdkVersion 30
         multiDexEnabled true
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -58,9 +58,17 @@ tasks.register('libsWithDebugSymbols', Zip) {
 }
 
 preBuild {
-    dependsOn ':makeJniLibrariesAndroid'
+    dependsOn 'makeJniLibraries'
 }
 
+task makeJniLibraries(type:Exec) {
+  group 'Rust'
+  description 'Build the JNI libraries'
+
+  // Explicitly specify 'bash' for Windows compatibility.
+  commandLine 'bash', '../build_jni.sh', 'android'
+  environment 'ANDROID_NDK_HOME', android.ndkDirectory
+}
 
 // MARK: Publication
 afterEvaluate {

@@ -37,3 +37,8 @@ mod cds2;
 mod hsm_enclave;
 
 pub mod zkgroup;
+
+#[cfg(feature = "ffi")]
+pub mod ias;
+
+pub mod usernames;
