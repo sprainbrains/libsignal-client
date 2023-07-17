@@ -158,7 +158,7 @@ impl KeyType {
     /// Allows KeyType to act like `&dyn Parameters` while still being represented by a single byte.
     ///
     /// Declared `const` to encourage inlining.
-    const fn parameters(&self) -> &'static dyn DynParameters {
+    fn parameters(&self) -> &'static dyn DynParameters {
         match self {
             KeyType::Kyber768 => &kyber768::Parameters,
             KeyType::Kyber1024 => &kyber1024::Parameters,
