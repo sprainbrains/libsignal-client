@@ -262,9 +262,9 @@ impl<'a, T: attributes::PublicKey + ?Sized> PresentationProofBuilderCore<'a, T> 
         for (G_y_name, G_yn) in G_y_names
             .iter()
             .take(self.attr_points.len())
-            .zip(credentials_system.G_y)
+            .zip(&credentials_system.G_y)
         {
-            point_args.add(G_y_name, G_yn)
+            point_args.add(G_y_name, *G_yn)
         }
 
         point_args.add("C_y0", commitments.C_y[0]);

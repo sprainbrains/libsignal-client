@@ -108,7 +108,7 @@ impl<'a> From<&'a CredentialPrivateKey> for CredentialPublicKey {
         let C_W = private_key.W + (private_key.wprime * system.G_wprime);
         let mut I_i = system.G_V - (private_key.x0 * system.G_x0) - (private_key.x1 * system.G_x1);
 
-        let mut y_and_G_y_iter = private_key.y.iter().zip(system.G_y);
+        let mut y_and_G_y_iter = private_key.y.iter().zip(&system.G_y);
         let (y0, G_y0) = y_and_G_y_iter.next().expect("correct number of parameters");
         I_i -= y0 * G_y0;
 

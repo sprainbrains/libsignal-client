@@ -84,7 +84,7 @@ impl<'a> IssuanceProofBuilder<'a> {
     ///
     /// This is order-sensitive.
     pub fn add_attribute(mut self, attr: &dyn Attribute) -> Self {
-        self.attr_points.extend(attr.as_points());
+        self.attr_points.extend(&attr.as_points());
         assert!(
             self.attr_points.len() <= NUM_SUPPORTED_ATTRS,
             "more than {} hidden attribute points not supported",
