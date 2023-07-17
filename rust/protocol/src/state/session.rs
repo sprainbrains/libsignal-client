@@ -48,9 +48,12 @@ impl<'a> UnacknowledgedPreKeyMessageItems<'a> {
         base_key: PublicKey,
         pending_kyber_pre_key: Option<&'a session_structure::PendingKyberPreKey>,
     ) -> Self {
-        let (kyber_pre_key_id, kyber_ciphertext) = pending_kyber_pre_key
+        let (kyber_pre_key_id, kyber_ciphertext) = match pending_kyber_pre_key
             .map(|pending| (pending.pre_key_id.into(), pending.ciphertext.as_slice()))
-            .unzip();
+        {
+            Some((id, ct)) => (Some(id), Some(ct)),
+            None => (None, None),
+        };
         Self {
             pre_key_id,
             signed_pre_key_id,

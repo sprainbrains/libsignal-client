@@ -15,6 +15,7 @@
 //! [Double Ratchet]: https://signal.org/docs/specifications/doubleratchet/
 
 #![cfg_attr(feature = "whisperfork", feature(vec_extend_from_within))]
+#![cfg_attr(feature = "whisperfork", feature(array_methods))]
 #![warn(clippy::unwrap_used)]
 #![deny(unsafe_code)]
 

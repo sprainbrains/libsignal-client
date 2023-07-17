@@ -36,7 +36,7 @@ impl fmt::Display for ServiceIdKind {
 
 impl fmt::Debug for ServiceIdKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self}")
+        write!(f, "{}", self)
     }
 }
 
