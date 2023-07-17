@@ -17,6 +17,9 @@ curve25519-dalek = { version = "3.0", features = ["serde"] }
 lazy_static = "1.4.0"
 serde = { version = "1", features = ["derive"] }
 
+[features]
+whisperfork = []
+
 [dev-dependencies]
 bincode = "1.2.1"
 hex = "0.4"

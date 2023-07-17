@@ -37,7 +37,7 @@ git = "https://github.com/signalapp/curve25519-dalek.git"
 branch = "lizard2"
 
 [features]
-whisperfork = []
+whisperfork = ["zkcredential/whisperfork"]
 
 [dev-dependencies]
 # For benchmarking

@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#![cfg_attr(feature = "whisperfork", feature(array_map))]
+#![cfg_attr(feature = "whisperfork", feature(array_methods))]
+
 //! Used to build custom _attribute-based anonymous credentials_ ("ABCs") and their associated
 //! proofs.
 //!
