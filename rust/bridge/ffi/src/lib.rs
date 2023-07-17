@@ -53,7 +53,7 @@ pub unsafe extern "C" fn signal_error_get_message(
             return Err(SignalFfiError::NullPointer);
         }
         let msg = format!("{}", *err);
-        write_cstr_to(out, Ok(msg))
+        write_result_to(out, msg)
     })();
 
     match result {
@@ -149,8 +149,7 @@ pub unsafe extern "C" fn signal_identitykeypair_deserialize(
 
 #[no_mangle]
 pub unsafe extern "C" fn signal_sealed_session_cipher_decrypt(
-    out: *mut *const c_uchar,
-    out_len: *mut size_t,
+    out: *mut OwnedBufferOf<c_uchar>,
     sender_e164: *mut *const c_char,
     sender_uuid: *mut *const c_char,
     sender_device_id: *mut u32,
@@ -167,6 +166,7 @@ pub unsafe extern "C" fn signal_sealed_session_cipher_decrypt(
     ctx: *mut c_void,
 ) -> *mut SignalFfiError {
     run_ffi_safe(|| {
+        let mut kyber_pre_key_store = InMemKyberPreKeyStore::new();
         let ctext = ctext.as_slice()?;
         let trust_root = native_handle_cast::<PublicKey>(trust_root)?;
         let mut identity_store = identity_store.as_ref().ok_or(SignalFfiError::NullPointer)?;
@@ -190,14 +190,16 @@ pub unsafe extern "C" fn signal_sealed_session_cipher_decrypt(
             &mut session_store,
             &mut prekey_store,
             &mut signed_prekey_store,
+            &mut kyber_pre_key_store,
             Some(ctx),
         )
         .now_or_never()
         .expect("synchronous")?;
 
-        write_optional_cstr_to(sender_e164, Ok(decrypted.sender_e164))?;
-        write_cstr_to(sender_uuid, Ok(decrypted.sender_uuid))?;
+        write_result_to(sender_e164, decrypted.sender_e164)?;
+        write_result_to(sender_uuid, decrypted.sender_uuid)?;
         write_result_to(sender_device_id, u32::from(decrypted.device_id))?;
-        write_bytearray_to(out, out_len, Some(decrypted.message))
+        write_result_to(out, decrypted.message)?;
+        Ok(())
     })
 }

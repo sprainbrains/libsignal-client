@@ -23,6 +23,7 @@ pub mod node;
 
 #[macro_use]
 mod support;
+
 pub use support::describe_panic;
 
 pub mod crypto;
@@ -33,6 +34,7 @@ pub mod protocol;
 pub mod device_transfer;
 
 mod cds2;
+mod sgx_session;
 
 mod hsm_enclave;
 
@@ -41,4 +43,16 @@ pub mod zkgroup;
 #[cfg(feature = "ffi")]
 pub mod ias;
 
+// Desktop does not use SVR
+#[cfg(any(feature = "jni", feature = "ffi"))]
+mod pin;
+#[cfg(any(feature = "jni", feature = "ffi"))]
+mod svr2;
+
+pub mod incremental_mac;
 pub mod usernames;
+
+mod io;
+
+#[cfg(feature = "signal-media")]
+pub mod media;

@@ -17,7 +17,7 @@ class UsernameTests: TestCaseBase {
 
         try Username.verify(proof: proof, forHash: username.hash)
         var hash = username.hash
-        hash.swapAt(0, 1)
+        hash.shuffle()
         XCTAssertThrowsError(
             try Username.verify(proof: proof, forHash: hash)
         )
@@ -59,7 +59,7 @@ class UsernameTests: TestCaseBase {
         var hash = username.hash
         let proof = username.generateProof()
 
-        hash.swapAt(0, 31)
+        hash.shuffle()
         XCTAssertThrowsError(try Username.verify(proof: proof, forHash: hash))
     }
 
@@ -74,6 +74,37 @@ class UsernameTests: TestCaseBase {
             _ = try Username("I⍰Unicode.42")
             XCTFail("Should have failed")
         } catch SignalError.badNicknameCharacter {
+        } catch {
+            XCTFail("Unexpected error thrown")
+        }
+    }
+
+    func testUsernameLinkWorksEndToEnd() throws {
+        let original = try Username("SiGNAl.42")
+        let (randomness, linkBytes) = try original.createLink()
+        let recreated = try Username(fromLink: linkBytes, withRandomness: randomness)
+        XCTAssertEqual(original, recreated)
+    }
+
+    func testUsernameLinkInvalidEntropySize() throws {
+        do {
+            let randomness = [UInt8](repeating: 0, count: 16)
+            let linkBytes = [UInt8](repeating: 0, count: 32)
+            _ = try Username(fromLink: linkBytes, withRandomness: randomness)
+            XCTFail("Should have failed")
+        } catch SignalError.usernameLinkInvalidEntropyDataLength {
+        } catch {
+            XCTFail("Unexpected error thrown")
+        }
+    }
+
+    func testUsernameLinkInvalidLinkBytes() throws {
+        do {
+            let randomness = [UInt8](repeating: 0, count: 32)
+            let linkBytes = [UInt8](repeating: 0, count: 32)
+            _ = try Username(fromLink: linkBytes, withRandomness: randomness)
+            XCTFail("Should have failed")
+        } catch SignalError.usernameLinkInvalid {
         } catch {
             XCTFail("Unexpected error thrown")
         }

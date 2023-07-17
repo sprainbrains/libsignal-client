@@ -7,6 +7,9 @@
 export { default as ServerPublicParams } from './ServerPublicParams';
 export { default as ServerSecretParams } from './ServerSecretParams';
 
+export { default as GenericServerPublicParams } from './GenericServerPublicParams';
+export { default as GenericServerSecretParams } from './GenericServerSecretParams';
+
 export { default as NotarySignature } from './NotarySignature';
 
 // Auth
@@ -36,20 +39,13 @@ export { default as ServerZkProfileOperations } from './profiles/ServerZkProfile
 
 export { default as ProfileKey } from './profiles/ProfileKey';
 export { default as ProfileKeyCommitment } from './profiles/ProfileKeyCommitment';
-export { default as ProfileKeyCredential } from './profiles/ProfileKeyCredential';
 export { default as ProfileKeyCredentialPresentation } from './profiles/ProfileKeyCredentialPresentation';
 export { default as ProfileKeyCredentialRequest } from './profiles/ProfileKeyCredentialRequest';
 export { default as ProfileKeyCredentialRequestContext } from './profiles/ProfileKeyCredentialRequestContext';
-export { default as ProfileKeyCredentialResponse } from './profiles/ProfileKeyCredentialResponse';
 export { default as ProfileKeyVersion } from './profiles/ProfileKeyVersion';
 
 export { default as ExpiringProfileKeyCredential } from './profiles/ExpiringProfileKeyCredential';
 export { default as ExpiringProfileKeyCredentialResponse } from './profiles/ExpiringProfileKeyCredentialResponse';
-
-export { default as PniCredential } from './profiles/PniCredential';
-export { default as PniCredentialPresentation } from './profiles/PniCredentialPresentation';
-export { default as PniCredentialRequestContext } from './profiles/PniCredentialRequestContext';
-export { default as PniCredentialResponse } from './profiles/PniCredentialResponse';
 
 // Receipts
 export { default as ClientZkReceiptOperations } from './receipts/ClientZkReceiptOperations';
@@ -61,3 +57,15 @@ export { default as ReceiptCredentialRequest } from './receipts/ReceiptCredentia
 export { default as ReceiptCredentialRequestContext } from './receipts/ReceiptCredentialRequestContext';
 export { default as ReceiptCredentialResponse } from './receipts/ReceiptCredentialResponse';
 export { default as ReceiptSerial } from './receipts/ReceiptSerial';
+
+// Call Links
+export { default as CallLinkPublicParams } from './calllinks/CallLinkPublicParams';
+export { default as CallLinkSecretParams } from './calllinks/CallLinkSecretParams';
+export { default as CallLinkAuthCredential } from './calllinks/CallLinkAuthCredential';
+export { default as CallLinkAuthCredentialPresentation } from './calllinks/CallLinkAuthCredentialPresentation';
+export { default as CallLinkAuthCredentialResponse } from './calllinks/CallLinkAuthCredentialResponse';
+export { default as CreateCallLinkCredential } from './calllinks/CreateCallLinkCredential';
+export { default as CreateCallLinkCredentialPresentation } from './calllinks/CreateCallLinkCredentialPresentation';
+export { default as CreateCallLinkCredentialRequest } from './calllinks/CreateCallLinkCredentialRequest';
+export { default as CreateCallLinkCredentialRequestContext } from './calllinks/CreateCallLinkCredentialRequestContext';
+export { default as CreateCallLinkCredentialResponse } from './calllinks/CreateCallLinkCredentialResponse';

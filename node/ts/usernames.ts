@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+/* eslint @typescript-eslint/no-shadow: ["error", { "allow": ["hash"] }] */
+
 import { randomBytes } from 'crypto';
 import { RANDOM_LENGTH } from './zkgroup/internal/Constants';
 import * as Native from '../Native';
@@ -33,6 +35,24 @@ export function generateProofWithRandom(
   random: Buffer
 ): Buffer {
   return Native.Username_Proof(username, random);
+}
+
+export class UsernameLink {
+  constructor(readonly entropy: Buffer, readonly encryptedUsername: Buffer) {}
+
+  decryptUsername(): string {
+    return Native.UsernameLink_DecryptUsername(
+      this.entropy,
+      this.encryptedUsername
+    );
+  }
+}
+
+export function createUsernameLink(username: string): UsernameLink {
+  const usernameLinkData = Native.UsernameLink_Create(username);
+  const entropy = usernameLinkData.slice(0, 32);
+  const encryptedUsername = usernameLinkData.slice(32);
+  return new UsernameLink(entropy, encryptedUsername);
 }
 
 // Only for testing. Will throw on failure.

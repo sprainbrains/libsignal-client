@@ -35,7 +35,7 @@ const COMPRESSED_BASE_POINTS_RAW: [[u8; 32]; 3] = [
 
 // 37^48 will overflow the Scalar. See nickname_scalar implementation for details.
 pub(crate) const MAX_NICKNAME_LENGTH: usize = 48;
-pub(crate) const DISCRIMINATOR_RANGES: [Range<u32>; 8] = [
+pub(crate) const DISCRIMINATOR_RANGES: [Range<usize>; 8] = [
     1..100,
     100..1_000,
     1_000..10_000,
@@ -46,7 +46,19 @@ pub(crate) const DISCRIMINATOR_RANGES: [Range<u32>; 8] = [
     100_000_000..1_000_000_000,
 ];
 
-pub(crate) const CANDIDATES_PER_RANGE: [u8; 8] = [4, 3, 3, 2, 2, 2, 2, 2];
+pub(crate) const CANDIDATES_PER_RANGE: [usize; 8] = [4, 3, 3, 2, 2, 2, 2, 2];
+
+pub(crate) const USERNAME_LINK_LABEL_ENCRYPTION_KEY: &[u8] = b"Signal Username Link Encryption Key";
+pub(crate) const USERNAME_LINK_LABEL_AUTHENTICATION_KEY: &[u8] =
+    b"Signal Username Link Authentication Key";
+pub(crate) const USERNAME_LINK_HMAC_ALGORITHM: &str = "HmacSha256";
+pub(crate) const USERNAME_LINK_HMAC_LEN: usize = 32;
+pub(crate) const USERNAME_LINK_ENTROPY_SIZE: usize = 32;
+pub(crate) const USERNAME_LINK_KEY_SIZE: usize = 32;
+pub(crate) const USERNAME_LINK_IV_SIZE: usize = 16;
+pub(crate) const USERNAME_LINK_MAX_DATA_SIZE: usize = 128;
+pub(crate) const USERNAME_LINK_MAX_PTEXT_SIZE: usize =
+    USERNAME_LINK_MAX_DATA_SIZE - USERNAME_LINK_IV_SIZE - USERNAME_LINK_HMAC_LEN;
 
 #[cfg(test)]
 mod test {

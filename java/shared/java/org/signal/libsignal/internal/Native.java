@@ -12,6 +12,7 @@ import org.signal.libsignal.protocol.state.IdentityKeyStore;
 import org.signal.libsignal.protocol.state.SessionStore;
 import org.signal.libsignal.protocol.state.PreKeyStore;
 import org.signal.libsignal.protocol.state.SignedPreKeyStore;
+import org.signal.libsignal.protocol.state.KyberPreKeyStore;
 import org.signal.libsignal.protocol.groups.state.SenderKeyStore;
 import org.signal.libsignal.protocol.logging.Log;
 import org.signal.libsignal.protocol.logging.SignalProtocolLogger;
@@ -115,14 +116,43 @@ public final class Native {
 
   public static native void AuthCredential_CheckValidContents(byte[] buffer);
 
-  public static native void Cds2ClientState_CompleteHandshake(long cli, byte[] handshakeReceived);
-  public static native void Cds2ClientState_Destroy(long handle);
-  public static native byte[] Cds2ClientState_EstablishedRecv(long cli, byte[] receivedCiphertext);
-  public static native byte[] Cds2ClientState_EstablishedSend(long cli, byte[] plaintextToSend);
-  public static native byte[] Cds2ClientState_InitialRequest(long obj);
+  public static native void CallLinkAuthCredentialPresentation_CheckValidContents(byte[] presentationBytes);
+  public static native byte[] CallLinkAuthCredentialPresentation_GetUserId(byte[] presentationBytes);
+  public static native void CallLinkAuthCredentialPresentation_Verify(byte[] presentationBytes, long now, byte[] serverParamsBytes, byte[] callLinkParamsBytes);
+
+  public static native void CallLinkAuthCredentialResponse_CheckValidContents(byte[] responseBytes);
+  public static native byte[] CallLinkAuthCredentialResponse_IssueDeterministic(UUID userId, long redemptionTime, byte[] paramsBytes, byte[] randomness);
+  public static native byte[] CallLinkAuthCredentialResponse_Receive(byte[] responseBytes, UUID userId, long redemptionTime, byte[] paramsBytes);
+
+  public static native void CallLinkAuthCredential_CheckValidContents(byte[] credentialBytes);
+  public static native byte[] CallLinkAuthCredential_PresentDeterministic(byte[] credentialBytes, UUID userId, long redemptionTime, byte[] serverParamsBytes, byte[] callLinkParamsBytes, byte[] randomness);
+
+  public static native void CallLinkPublicParams_CheckValidContents(byte[] paramsBytes);
+
+  public static native void CallLinkSecretParams_CheckValidContents(byte[] paramsBytes);
+  public static native UUID CallLinkSecretParams_DecryptUserId(byte[] paramsBytes, byte[] userId);
+  public static native byte[] CallLinkSecretParams_DeriveFromRootKey(byte[] rootKey);
+  public static native byte[] CallLinkSecretParams_GetPublicParams(byte[] paramsBytes);
+
   public static native long Cds2ClientState_New(byte[] mrenclave, byte[] attestationMsg, long currentTimestamp);
 
   public static native Map Cds2Metrics_extract(byte[] attestationMsg);
+
+  public static native void CreateCallLinkCredentialPresentation_CheckValidContents(byte[] presentationBytes);
+  public static native void CreateCallLinkCredentialPresentation_Verify(byte[] presentationBytes, byte[] roomId, long now, byte[] serverParamsBytes, byte[] callLinkParamsBytes);
+
+  public static native void CreateCallLinkCredentialRequestContext_CheckValidContents(byte[] contextBytes);
+  public static native byte[] CreateCallLinkCredentialRequestContext_GetRequest(byte[] contextBytes);
+  public static native byte[] CreateCallLinkCredentialRequestContext_NewDeterministic(byte[] roomId, byte[] randomness);
+  public static native byte[] CreateCallLinkCredentialRequestContext_ReceiveResponse(byte[] contextBytes, byte[] responseBytes, UUID userId, byte[] paramsBytes);
+
+  public static native void CreateCallLinkCredentialRequest_CheckValidContents(byte[] requestBytes);
+  public static native byte[] CreateCallLinkCredentialRequest_IssueDeterministic(byte[] requestBytes, UUID userId, long timestamp, byte[] paramsBytes, byte[] randomness);
+
+  public static native void CreateCallLinkCredentialResponse_CheckValidContents(byte[] responseBytes);
+
+  public static native void CreateCallLinkCredential_CheckValidContents(byte[] paramsBytes);
+  public static native byte[] CreateCallLinkCredential_PresentDeterministic(byte[] credentialBytes, byte[] roomId, UUID userId, byte[] serverParamsBytes, byte[] callLinkParamsBytes, byte[] randomness);
 
   public static native void CryptographicHash_Destroy(long handle);
   public static native byte[] CryptographicHash_Finalize(long hash);
@@ -159,6 +189,7 @@ public final class Native {
   public static native int ECPublicKey_Compare(long key1, long key2);
   public static native long ECPublicKey_Deserialize(byte[] data, int offset);
   public static native void ECPublicKey_Destroy(long handle);
+  public static native boolean ECPublicKey_Equals(long lhs, long rhs);
   public static native byte[] ECPublicKey_GetPublicKeyBytes(long obj);
   public static native byte[] ECPublicKey_Serialize(long obj);
   public static native boolean ECPublicKey_Verify(long key, byte[] message, byte[] signature);
@@ -167,6 +198,12 @@ public final class Native {
 
   public static native void ExpiringProfileKeyCredential_CheckValidContents(byte[] buffer);
   public static native long ExpiringProfileKeyCredential_GetExpirationTime(byte[] credential);
+
+  public static native void GenericServerPublicParams_CheckValidContents(byte[] paramsBytes);
+
+  public static native void GenericServerSecretParams_CheckValidContents(byte[] paramsBytes);
+  public static native byte[] GenericServerSecretParams_GenerateDeterministic(byte[] randomness);
+  public static native byte[] GenericServerSecretParams_GetPublicParams(byte[] paramsBytes);
 
   public static native byte[] GroupCipher_DecryptMessage(long sender, byte[] message, SenderKeyStore store, Object ctx);
   public static native CiphertextMessage GroupCipher_EncryptMessage(long sender, UUID distributionId, byte[] message, SenderKeyStore store, Object ctx);
@@ -206,13 +243,55 @@ public final class Native {
 
   public static native boolean IdentityKey_VerifyAlternateIdentity(long publicKey, long otherIdentity, byte[] signature);
 
+  public static native int IncrementalMac_CalculateChunkSize(int dataSize);
+  public static native void IncrementalMac_Destroy(long handle);
+  public static native byte[] IncrementalMac_Finalize(long mac);
+  public static native long IncrementalMac_Initialize(byte[] key, int chunkSize);
+  public static native byte[] IncrementalMac_Update(long mac, byte[] bytes, int offset, int length);
+
+  public static native void KyberKeyPair_Destroy(long handle);
+  public static native long KyberKeyPair_Generate();
+  public static native long KyberKeyPair_GetPublicKey(long keyPair);
+  public static native long KyberKeyPair_GetSecretKey(long keyPair);
+
+  public static native long KyberPreKeyRecord_Deserialize(byte[] data);
+  public static native void KyberPreKeyRecord_Destroy(long handle);
+  public static native int KyberPreKeyRecord_GetId(long obj);
+  public static native long KyberPreKeyRecord_GetKeyPair(long obj);
+  public static native long KyberPreKeyRecord_GetPublicKey(long obj);
+  public static native long KyberPreKeyRecord_GetSecretKey(long obj);
+  public static native byte[] KyberPreKeyRecord_GetSerialized(long obj);
+  public static native byte[] KyberPreKeyRecord_GetSignature(long obj);
+  public static native long KyberPreKeyRecord_GetTimestamp(long obj);
+  public static native long KyberPreKeyRecord_New(int id, long timestamp, long keyPair, byte[] signature);
+
+  public static native long KyberPublicKey_DeserializeWithOffset(byte[] data, int offset);
+  public static native void KyberPublicKey_Destroy(long handle);
+  public static native boolean KyberPublicKey_Equals(long lhs, long rhs);
+  public static native byte[] KyberPublicKey_Serialize(long obj);
+
+  public static native long KyberSecretKey_Deserialize(byte[] data);
+  public static native void KyberSecretKey_Destroy(long handle);
+  public static native byte[] KyberSecretKey_Serialize(long obj);
+
   public static native void Logger_Initialize(int maxLevel, Class loggerClass);
   public static native void Logger_SetMaxLevel(int maxLevel);
+
+  public static native long Mp4Sanitizer_Sanitize(InputStream input, long len);
 
   public static native void NumericFingerprintGenerator_Destroy(long handle);
   public static native String NumericFingerprintGenerator_GetDisplayString(long obj);
   public static native byte[] NumericFingerprintGenerator_GetScannableEncoding(long obj);
   public static native long NumericFingerprintGenerator_New(int iterations, int version, byte[] localIdentifier, byte[] localKey, byte[] remoteIdentifier, byte[] remoteKey);
+
+  public static native byte[] PinHash_AccessKey(long ph);
+  public static native void PinHash_Destroy(long handle);
+  public static native byte[] PinHash_EncryptionKey(long ph);
+  public static native long PinHash_FromSalt(byte[] pin, byte[] salt);
+  public static native long PinHash_FromUsernameMrenclave(byte[] pin, String username, byte[] mrenclave);
+
+  public static native String Pin_LocalHash(byte[] pin);
+  public static native boolean Pin_VerifyLocalHash(String encodedHash, byte[] pin);
 
   public static native long PlaintextContent_Deserialize(byte[] data);
   public static native byte[] PlaintextContent_DeserializeAndGetContent(byte[] bytes);
@@ -221,28 +300,19 @@ public final class Native {
   public static native byte[] PlaintextContent_GetBody(long obj);
   public static native byte[] PlaintextContent_GetSerialized(long obj);
 
-  public static native void PniCredentialPresentation_CheckValidContents(byte[] presentationBytes);
-  public static native byte[] PniCredentialPresentation_GetAciCiphertext(byte[] presentationBytes);
-  public static native byte[] PniCredentialPresentation_GetPniCiphertext(byte[] presentationBytes);
-  public static native byte[] PniCredentialPresentation_GetProfileKeyCiphertext(byte[] presentationBytes);
-
-  public static native void PniCredentialRequestContext_CheckValidContents(byte[] buffer);
-  public static native byte[] PniCredentialRequestContext_GetRequest(byte[] context);
-
-  public static native void PniCredentialResponse_CheckValidContents(byte[] buffer);
-
-  public static native void PniCredential_CheckValidContents(byte[] buffer);
-
   public static native void PreKeyBundle_Destroy(long handle);
   public static native int PreKeyBundle_GetDeviceId(long obj);
   public static native long PreKeyBundle_GetIdentityKey(long p);
+  public static native int PreKeyBundle_GetKyberPreKeyId(long obj);
+  public static native long PreKeyBundle_GetKyberPreKeyPublic(long bundle);
+  public static native byte[] PreKeyBundle_GetKyberPreKeySignature(long bundle);
   public static native int PreKeyBundle_GetPreKeyId(long obj);
   public static native long PreKeyBundle_GetPreKeyPublic(long obj);
   public static native int PreKeyBundle_GetRegistrationId(long obj);
   public static native int PreKeyBundle_GetSignedPreKeyId(long obj);
   public static native long PreKeyBundle_GetSignedPreKeyPublic(long obj);
   public static native byte[] PreKeyBundle_GetSignedPreKeySignature(long obj);
-  public static native long PreKeyBundle_New(int registrationId, int deviceId, int prekeyId, long prekey, int signedPrekeyId, long signedPrekey, byte[] signedPrekeySignature, long identityKey);
+  public static native long PreKeyBundle_New(int registrationId, int deviceId, int prekeyId, long prekey, int signedPrekeyId, long signedPrekey, byte[] signedPrekeySignature, long identityKey, int kyberPrekeyId, long kyberPrekey, byte[] kyberPrekeySignature);
 
   public static native long PreKeyRecord_Deserialize(byte[] data);
   public static native void PreKeyRecord_Destroy(long handle);
@@ -278,11 +348,8 @@ public final class Native {
 
   public static native void ProfileKeyCredentialRequest_CheckValidContents(byte[] buffer);
 
-  public static native void ProfileKeyCredentialResponse_CheckValidContents(byte[] buffer);
-
-  public static native void ProfileKeyCredential_CheckValidContents(byte[] buffer);
-
   public static native void ProfileKey_CheckValidContents(byte[] buffer);
+  public static native byte[] ProfileKey_DeriveAccessKey(byte[] profileKey);
   public static native byte[] ProfileKey_GetCommitment(byte[] profileKey, UUID uuid);
   public static native byte[] ProfileKey_GetProfileKeyVersion(byte[] profileKey, UUID uuid);
 
@@ -306,6 +373,11 @@ public final class Native {
   public static native void ReceiptCredential_CheckValidContents(byte[] buffer);
   public static native long ReceiptCredential_GetReceiptExpirationTime(byte[] receiptCredential);
   public static native long ReceiptCredential_GetReceiptLevel(byte[] receiptCredential);
+
+  public static native void SanitizedMetadata_Destroy(long handle);
+  public static native long SanitizedMetadata_GetDataLen(long sanitized);
+  public static native long SanitizedMetadata_GetDataOffset(long sanitized);
+  public static native byte[] SanitizedMetadata_GetMetadata(long sanitized);
 
   public static native boolean ScannableFingerprint_Compare(byte[] fprint1, byte[] fprint2);
 
@@ -365,17 +437,12 @@ public final class Native {
   public static native byte[] ServerPublicParams_CreateAuthCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] authCredential);
   public static native byte[] ServerPublicParams_CreateAuthCredentialWithPniPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] authCredential);
   public static native byte[] ServerPublicParams_CreateExpiringProfileKeyCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] profileKeyCredential);
-  public static native byte[] ServerPublicParams_CreatePniCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] pniCredential);
-  public static native byte[] ServerPublicParams_CreatePniCredentialRequestContextDeterministic(byte[] serverPublicParams, byte[] randomness, UUID aci, UUID pni, byte[] profileKey);
-  public static native byte[] ServerPublicParams_CreateProfileKeyCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] groupSecretParams, byte[] profileKeyCredential);
   public static native byte[] ServerPublicParams_CreateProfileKeyCredentialRequestContextDeterministic(byte[] serverPublicParams, byte[] randomness, UUID uuid, byte[] profileKey);
   public static native byte[] ServerPublicParams_CreateReceiptCredentialPresentationDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] receiptCredential);
   public static native byte[] ServerPublicParams_CreateReceiptCredentialRequestContextDeterministic(byte[] serverPublicParams, byte[] randomness, byte[] receiptSerial);
   public static native byte[] ServerPublicParams_ReceiveAuthCredential(byte[] params, UUID uuid, int redemptionTime, byte[] response);
   public static native byte[] ServerPublicParams_ReceiveAuthCredentialWithPni(byte[] params, UUID aci, UUID pni, long redemptionTime, byte[] response);
   public static native byte[] ServerPublicParams_ReceiveExpiringProfileKeyCredential(byte[] serverPublicParams, byte[] requestContext, byte[] response, long currentTimeInSeconds);
-  public static native byte[] ServerPublicParams_ReceivePniCredential(byte[] serverPublicParams, byte[] requestContext, byte[] response);
-  public static native byte[] ServerPublicParams_ReceiveProfileKeyCredential(byte[] serverPublicParams, byte[] requestContext, byte[] response);
   public static native byte[] ServerPublicParams_ReceiveReceiptCredential(byte[] serverPublicParams, byte[] requestContext, byte[] response);
   public static native void ServerPublicParams_VerifySignature(byte[] serverPublicParams, byte[] message, byte[] notarySignature);
 
@@ -385,18 +452,21 @@ public final class Native {
   public static native byte[] ServerSecretParams_IssueAuthCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, UUID uuid, int redemptionTime);
   public static native byte[] ServerSecretParams_IssueAuthCredentialWithPniDeterministic(byte[] serverSecretParams, byte[] randomness, UUID aci, UUID pni, long redemptionTime);
   public static native byte[] ServerSecretParams_IssueExpiringProfileKeyCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, byte[] request, UUID uuid, byte[] commitment, long expirationInSeconds);
-  public static native byte[] ServerSecretParams_IssuePniCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, byte[] request, UUID aci, UUID pni, byte[] commitment);
-  public static native byte[] ServerSecretParams_IssueProfileKeyCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, byte[] request, UUID uuid, byte[] commitment);
   public static native byte[] ServerSecretParams_IssueReceiptCredentialDeterministic(byte[] serverSecretParams, byte[] randomness, byte[] request, long receiptExpirationTime, long receiptLevel);
   public static native byte[] ServerSecretParams_SignDeterministic(byte[] params, byte[] randomness, byte[] message);
   public static native void ServerSecretParams_VerifyAuthCredentialPresentation(byte[] serverSecretParams, byte[] groupPublicParams, byte[] presentationBytes, long currentTimeInSeconds);
-  public static native void ServerSecretParams_VerifyPniCredentialPresentation(byte[] serverSecretParams, byte[] groupPublicParams, byte[] presentationBytes);
   public static native void ServerSecretParams_VerifyProfileKeyCredentialPresentation(byte[] serverSecretParams, byte[] groupPublicParams, byte[] presentationBytes, long currentTimeInSeconds);
   public static native void ServerSecretParams_VerifyReceiptCredentialPresentation(byte[] serverSecretParams, byte[] presentation);
 
+  public static native byte[] ServiceId_ParseFromServiceIdBinary(byte[] input);
+  public static native byte[] ServiceId_ParseFromServiceIdString(String input);
+  public static native byte[] ServiceId_ServiceIdBinary(byte[] value);
+  public static native String ServiceId_ServiceIdLog(byte[] value);
+  public static native String ServiceId_ServiceIdString(byte[] value);
+
   public static native void SessionBuilder_ProcessPreKeyBundle(long bundle, long protocolAddress, SessionStore sessionStore, IdentityKeyStore identityKeyStore, Object ctx);
 
-  public static native byte[] SessionCipher_DecryptPreKeySignalMessage(long message, long protocolAddress, SessionStore sessionStore, IdentityKeyStore identityKeyStore, PreKeyStore prekeyStore, SignedPreKeyStore signedPrekeyStore, Object ctx);
+  public static native byte[] SessionCipher_DecryptPreKeySignalMessage(long message, long protocolAddress, SessionStore sessionStore, IdentityKeyStore identityKeyStore, PreKeyStore prekeyStore, SignedPreKeyStore signedPrekeyStore, KyberPreKeyStore kyberPrekeyStore, Object ctx);
   public static native byte[] SessionCipher_DecryptSignalMessage(long message, long protocolAddress, SessionStore sessionStore, IdentityKeyStore identityKeyStore, Object ctx);
   public static native CiphertextMessage SessionCipher_EncryptMessage(byte[] ptext, long protocolAddress, SessionStore sessionStore, IdentityKeyStore identityKeyStore, Object ctx);
 
@@ -419,6 +489,14 @@ public final class Native {
   public static native long SessionRecord_NewFresh();
   public static native byte[] SessionRecord_Serialize(long obj);
 
+  public static native void SgxClientState_CompleteHandshake(long cli, byte[] handshakeReceived);
+  public static native void SgxClientState_Destroy(long handle);
+  public static native byte[] SgxClientState_EstablishedRecv(long cli, byte[] receivedCiphertext);
+  public static native byte[] SgxClientState_EstablishedSend(long cli, byte[] plaintextToSend);
+  public static native byte[] SgxClientState_InitialRequest(long obj);
+
+  public static native void SignalMedia_CheckAvailable();
+
   public static native long SignalMessage_Deserialize(byte[] data);
   public static native void SignalMessage_Destroy(long handle);
   public static native byte[] SignalMessage_GetBody(long obj);
@@ -439,6 +517,8 @@ public final class Native {
   public static native long SignedPreKeyRecord_GetTimestamp(long obj);
   public static native long SignedPreKeyRecord_New(int id, long timestamp, long pubKey, long privKey, byte[] signature);
 
+  public static native long Svr2Client_New(byte[] mrenclave, byte[] attestationMsg, long currentTimestamp);
+
   public static native long UnidentifiedSenderMessageContent_Deserialize(byte[] data);
   public static native void UnidentifiedSenderMessageContent_Destroy(long handle);
   public static native int UnidentifiedSenderMessageContent_GetContentHint(long m);
@@ -449,10 +529,18 @@ public final class Native {
   public static native byte[] UnidentifiedSenderMessageContent_GetSerialized(long obj);
   public static native long UnidentifiedSenderMessageContent_New(CiphertextMessage message, long sender, int contentHint, byte[] groupId);
 
+  public static native byte[] UsernameLink_Create(String username);
+  public static native String UsernameLink_DecryptUsername(byte[] entropy, byte[] encryptedUsername);
+
   public static native String Username_CandidatesFrom(String nickname, int minLen, int maxLen);
   public static native byte[] Username_Hash(String username);
   public static native byte[] Username_Proof(String username, byte[] randomness);
   public static native void Username_Verify(byte[] proof, byte[] hash);
 
   public static native void UuidCiphertext_CheckValidContents(byte[] buffer);
+
+  public static native void ValidatingMac_Destroy(long handle);
+  public static native boolean ValidatingMac_Finalize(long mac);
+  public static native long ValidatingMac_Initialize(byte[] key, int chunkSize, byte[] digests);
+  public static native boolean ValidatingMac_Update(long mac, byte[] bytes, int offset, int length);
 }

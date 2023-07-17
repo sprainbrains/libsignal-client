@@ -7,12 +7,14 @@
 name = "zkgroup"
 version = "0.9.0"
 authors = ["Signal Messenger LLC"]
-edition = "2018"
+edition = "2021"
 description = "A zero-knowledge group library"
 license = "AGPL-3.0-only"
 
 [dependencies]
 poksho = { path = "../poksho" }
+zkcredential = { path = "../zkcredential" }
+signal-crypto = { path = "../crypto" }
 
 bincode = "1.2.1"
 serde = { version = "1.0.106", features = ["derive"] }
@@ -22,6 +24,7 @@ aead = "0.4.0"
 aes-gcm-siv = "0.10.0"
 displaydoc = "0.2"
 lazy_static = "1.4.0"
+subtle = "2.3"
 
 # For generation
 base64 = { version = "0.13.0", optional = true }
@@ -36,9 +39,8 @@ branch = "lizard2"
 [features]
 whisperfork = []
 
-# Below is for benchmarking:
-
 [dev-dependencies]
+# For benchmarking
 criterion = "0.4"
 
 [[bench]]
@@ -46,5 +48,9 @@ name = "zkgroup_benchmarks"
 harness = false
 
 [[bin]]
-name = "generate-server-params"
+name = "generate_server_params"
+required-features = ["base64", "rand"]
+
+[[bin]]
+name = "generate_generic_server_params"
 required-features = ["base64", "rand"]

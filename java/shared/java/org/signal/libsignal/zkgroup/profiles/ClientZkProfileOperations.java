@@ -41,45 +41,6 @@ public class ClientZkProfileOperations {
     }
   }
 
-  /**
-   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
-   */
-  @Deprecated
-  public PniCredentialRequestContext createPniCredentialRequestContext(UUID aci, UUID pni, ProfileKey profileKey) {
-    return createPniCredentialRequestContext(new SecureRandom(), aci, pni, profileKey);
-  }
-
-  /**
-   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
-   */
-  @Deprecated
-  public PniCredentialRequestContext createPniCredentialRequestContext(SecureRandom secureRandom, UUID aci, UUID pni, ProfileKey profileKey) {
-    byte[] random = new byte[RANDOM_LENGTH];
-    secureRandom.nextBytes(random);
-
-    byte[] newContents = Native.ServerPublicParams_CreatePniCredentialRequestContextDeterministic(serverPublicParams.getInternalContentsForJNI(), random, aci, pni, profileKey.getInternalContentsForJNI());
-
-    try {
-      return new PniCredentialRequestContext(newContents);
-    } catch (InvalidInputException e) {
-      throw new AssertionError(e);
-    }
-  }
-
-  public ProfileKeyCredential receiveProfileKeyCredential(ProfileKeyCredentialRequestContext profileKeyCredentialRequestContext, ProfileKeyCredentialResponse profileKeyCredentialResponse) throws VerificationFailedException {
-    if (profileKeyCredentialResponse == null) {
-      throw new VerificationFailedException();
-    }
-
-    byte[] newContents = Native.ServerPublicParams_ReceiveProfileKeyCredential(serverPublicParams.getInternalContentsForJNI(), profileKeyCredentialRequestContext.getInternalContentsForJNI(), profileKeyCredentialResponse.getInternalContentsForJNI());
-
-    try {
-      return new ProfileKeyCredential(newContents);
-    } catch (InvalidInputException e) {
-      throw new AssertionError(e);
-    }
-  }
-
   public ExpiringProfileKeyCredential receiveExpiringProfileKeyCredential(ProfileKeyCredentialRequestContext profileKeyCredentialRequestContext, ExpiringProfileKeyCredentialResponse profileKeyCredentialResponse) throws VerificationFailedException {
     return receiveExpiringProfileKeyCredential(profileKeyCredentialRequestContext, profileKeyCredentialResponse, Instant.now());
   }
@@ -98,41 +59,6 @@ public class ClientZkProfileOperations {
     }
   }
 
-  /**
-   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
-   */
-  @Deprecated
-  public PniCredential receivePniCredential(PniCredentialRequestContext requestContext, PniCredentialResponse response) throws VerificationFailedException {
-    if (response == null) {
-      throw new VerificationFailedException();
-    }
-
-    byte[] newContents = Native.ServerPublicParams_ReceivePniCredential(serverPublicParams.getInternalContentsForJNI(), requestContext.getInternalContentsForJNI(), response.getInternalContentsForJNI());
-
-    try {
-      return new PniCredential(newContents);
-    } catch (InvalidInputException e) {
-      throw new AssertionError(e);
-    }
-  }
-
-  public ProfileKeyCredentialPresentation createProfileKeyCredentialPresentation(GroupSecretParams groupSecretParams, ProfileKeyCredential profileKeyCredential) {
-    return createProfileKeyCredentialPresentation(new SecureRandom(), groupSecretParams, profileKeyCredential);
-  }
-
-  public ProfileKeyCredentialPresentation createProfileKeyCredentialPresentation(SecureRandom secureRandom, GroupSecretParams groupSecretParams, ProfileKeyCredential profileKeyCredential) {
-    byte[] random      = new byte[RANDOM_LENGTH];
-    secureRandom.nextBytes(random);
-
-    byte[] newContents = Native.ServerPublicParams_CreateProfileKeyCredentialPresentationDeterministic(serverPublicParams.getInternalContentsForJNI(), random, groupSecretParams.getInternalContentsForJNI(), profileKeyCredential.getInternalContentsForJNI());
-
-    try {
-      return new ProfileKeyCredentialPresentation(newContents);
-    } catch (InvalidInputException e) {
-      throw new AssertionError(e);
-    }
-  }
-
   public ProfileKeyCredentialPresentation createProfileKeyCredentialPresentation(GroupSecretParams groupSecretParams, ExpiringProfileKeyCredential profileKeyCredential) {
     return createProfileKeyCredentialPresentation(new SecureRandom(), groupSecretParams, profileKeyCredential);
   }
@@ -145,31 +71,6 @@ public class ClientZkProfileOperations {
 
     try {
       return new ProfileKeyCredentialPresentation(newContents);
-    } catch (InvalidInputException e) {
-      throw new AssertionError(e);
-    }
-  }
-
-  /**
-   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
-   */
-  @Deprecated
-  public PniCredentialPresentation createPniCredentialPresentation(GroupSecretParams groupSecretParams, PniCredential credential) {
-    return createPniCredentialPresentation(new SecureRandom(), groupSecretParams, credential);
-  }
-
-  /**
-   * @deprecated Superseded by AuthCredentialWithPni + ProfileKeyCredential.
-   */
-  @Deprecated
-  public PniCredentialPresentation createPniCredentialPresentation(SecureRandom secureRandom, GroupSecretParams groupSecretParams, PniCredential credential) {
-    byte[] random = new byte[RANDOM_LENGTH];
-    secureRandom.nextBytes(random);
-
-    byte[] newContents = Native.ServerPublicParams_CreatePniCredentialPresentationDeterministic(serverPublicParams.getInternalContentsForJNI(), random, groupSecretParams.getInternalContentsForJNI(), credential.getInternalContentsForJNI());
-
-    try {
-      return new PniCredentialPresentation(newContents);
     } catch (InvalidInputException e) {
       throw new AssertionError(e);
     }

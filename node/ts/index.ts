@@ -13,6 +13,10 @@ export * from './Address';
 
 export * as usernames from './usernames';
 
+export * as io from './io';
+
+export * as Mp4Sanitizer from './Mp4Sanitizer';
+
 import * as Native from '../Native';
 
 Native.registerErrors(Errors);
@@ -239,6 +243,74 @@ export class PrivateKey {
   }
 }
 
+export class KEMPublicKey {
+  readonly _nativeHandle: Native.KyberPublicKey;
+
+  private constructor(handle: Native.KyberPublicKey) {
+    this._nativeHandle = handle;
+  }
+
+  static _fromNativeHandle(handle: Native.KyberPublicKey): KEMPublicKey {
+    return new KEMPublicKey(handle);
+  }
+
+  static deserialize(buf: Buffer): KEMPublicKey {
+    return new KEMPublicKey(Native.KyberPublicKey_Deserialize(buf));
+  }
+
+  serialize(): Buffer {
+    return Native.KyberPublicKey_Serialize(this);
+  }
+}
+
+export class KEMSecretKey {
+  readonly _nativeHandle: Native.KyberSecretKey;
+
+  private constructor(handle: Native.KyberSecretKey) {
+    this._nativeHandle = handle;
+  }
+
+  static _fromNativeHandle(handle: Native.KyberSecretKey): KEMSecretKey {
+    return new KEMSecretKey(handle);
+  }
+
+  static deserialize(buf: Buffer): KEMSecretKey {
+    return new KEMSecretKey(Native.KyberSecretKey_Deserialize(buf));
+  }
+
+  serialize(): Buffer {
+    return Native.KyberSecretKey_Serialize(this);
+  }
+}
+
+export class KEMKeyPair {
+  readonly _nativeHandle: Native.KyberKeyPair;
+
+  private constructor(handle: Native.KyberKeyPair) {
+    this._nativeHandle = handle;
+  }
+
+  static _fromNativeHandle(handle: Native.KyberKeyPair): KEMKeyPair {
+    return new KEMKeyPair(handle);
+  }
+
+  static generate(): KEMKeyPair {
+    return new KEMKeyPair(Native.KyberKeyPair_Generate());
+  }
+
+  getPublicKey(): KEMPublicKey {
+    return KEMPublicKey._fromNativeHandle(
+      Native.KyberKeyPair_GetPublicKey(this)
+    );
+  }
+
+  getSecretKey(): KEMSecretKey {
+    return KEMSecretKey._fromNativeHandle(
+      Native.KyberKeyPair_GetSecretKey(this)
+    );
+  }
+}
+
 export class IdentityKeyPair {
   readonly publicKey: PublicKey;
   readonly privateKey: PrivateKey;
@@ -290,7 +362,10 @@ export class PreKeyBundle {
     signed_prekey_id: number,
     signed_prekey: PublicKey,
     signed_prekey_signature: Buffer,
-    identity_key: PublicKey
+    identity_key: PublicKey,
+    kyber_prekey_id?: number | null,
+    kyber_prekey?: KEMPublicKey | null,
+    kyber_prekey_signature?: Buffer | null
   ): PreKeyBundle {
     return new PreKeyBundle(
       Native.PreKeyBundle_New(
@@ -302,7 +377,10 @@ export class PreKeyBundle {
         signed_prekey_id,
         signed_prekey,
         signed_prekey_signature,
-        identity_key
+        identity_key,
+        kyber_prekey_id ?? null,
+        kyber_prekey ?? null,
+        kyber_prekey_signature ?? Buffer.alloc(0)
       )
     );
   }
@@ -340,6 +418,20 @@ export class PreKeyBundle {
   }
   signedPreKeySignature(): Buffer {
     return Native.PreKeyBundle_GetSignedPreKeySignature(this);
+  }
+
+  kyberPreKeyId(): number | null {
+    return Native.PreKeyBundle_GetKyberPreKeyId(this);
+  }
+
+  kyberPreKeyPublic(): KEMPublicKey | null {
+    const handle = Native.PreKeyBundle_GetKyberPreKeyPublic(this);
+    return handle == null ? null : KEMPublicKey._fromNativeHandle(handle);
+  }
+
+  kyberPreKeySignature(): Buffer | null {
+    const buf = Native.PreKeyBundle_GetKyberPreKeySignature(this);
+    return buf.length == 0 ? null : buf;
   }
 }
 
@@ -438,6 +530,69 @@ export class SignedPreKeyRecord {
 
   timestamp(): number {
     return Native.SignedPreKeyRecord_GetTimestamp(this);
+  }
+}
+
+export class KyberPreKeyRecord {
+  readonly _nativeHandle: Native.KyberPreKeyRecord;
+
+  private constructor(handle: Native.KyberPreKeyRecord) {
+    this._nativeHandle = handle;
+  }
+
+  static _fromNativeHandle(
+    nativeHandle: Native.KyberPreKeyRecord
+  ): KyberPreKeyRecord {
+    return new KyberPreKeyRecord(nativeHandle);
+  }
+
+  static new(
+    id: number,
+    timestamp: number,
+    keyPair: KEMKeyPair,
+    signature: Buffer
+  ): KyberPreKeyRecord {
+    return new KyberPreKeyRecord(
+      Native.KyberPreKeyRecord_New(id, timestamp, keyPair, signature)
+    );
+  }
+
+  serialize(): Buffer {
+    return Native.KyberPreKeyRecord_Serialize(this);
+  }
+
+  static deserialize(buffer: Buffer): KyberPreKeyRecord {
+    return new KyberPreKeyRecord(Native.KyberPreKeyRecord_Deserialize(buffer));
+  }
+
+  id(): number {
+    return Native.KyberPreKeyRecord_GetId(this);
+  }
+
+  keyPair(): KEMKeyPair {
+    return KEMKeyPair._fromNativeHandle(
+      Native.KyberPreKeyRecord_GetKeyPair(this)
+    );
+  }
+
+  publicKey(): KEMPublicKey {
+    return KEMPublicKey._fromNativeHandle(
+      Native.KyberPreKeyRecord_GetPublicKey(this)
+    );
+  }
+
+  secretKey(): KEMSecretKey {
+    return KEMSecretKey._fromNativeHandle(
+      Native.KyberPreKeyRecord_GetSecretKey(this)
+    );
+  }
+
+  signature(): Buffer {
+    return Native.KyberPreKeyRecord_GetSignature(this);
+  }
+
+  timestamp(): number {
+    return Native.KyberPreKeyRecord_GetTimestamp(this);
   }
 }
 
@@ -1073,6 +1228,35 @@ export abstract class SignedPreKeyStore implements Native.SignedPreKeyStore {
   abstract getSignedPreKey(id: number): Promise<SignedPreKeyRecord>;
 }
 
+export abstract class KyberPreKeyStore implements Native.KyberPreKeyStore {
+  async _saveKyberPreKey(
+    kyberPreKeyId: number,
+    record: Native.KyberPreKeyRecord
+  ): Promise<void> {
+    return this.saveKyberPreKey(
+      kyberPreKeyId,
+      KyberPreKeyRecord._fromNativeHandle(record)
+    );
+  }
+  async _getKyberPreKey(
+    kyberPreKeyId: number
+  ): Promise<Native.KyberPreKeyRecord> {
+    const prekey = await this.getKyberPreKey(kyberPreKeyId);
+    return prekey._nativeHandle;
+  }
+
+  async _markKyberPreKeyUsed(kyberPreKeyId: number): Promise<void> {
+    return this.markKyberPreKeyUsed(kyberPreKeyId);
+  }
+
+  abstract saveKyberPreKey(
+    kyberPreKeyId: number,
+    record: KyberPreKeyRecord
+  ): Promise<void>;
+  abstract getKyberPreKey(kyberPreKeyId: number): Promise<KyberPreKeyRecord>;
+  abstract markKyberPreKeyUsed(kyberPreKeyId: number): Promise<void>;
+}
+
 export abstract class SenderKeyStore implements Native.SenderKeyStore {
   async _saveSenderKey(
     sender: Native.ProtocolAddress,
@@ -1344,7 +1528,8 @@ export function signalDecryptPreKey(
   sessionStore: SessionStore,
   identityStore: IdentityKeyStore,
   prekeyStore: PreKeyStore,
-  signedPrekeyStore: SignedPreKeyStore
+  signedPrekeyStore: SignedPreKeyStore,
+  kyberPrekeyStore: KyberPreKeyStore
 ): Promise<Buffer> {
   return Native.SessionCipher_DecryptPreKeySignalMessage(
     message,
@@ -1353,6 +1538,7 @@ export function signalDecryptPreKey(
     identityStore,
     prekeyStore,
     signedPrekeyStore,
+    kyberPrekeyStore,
     null
   );
 }
@@ -1420,7 +1606,8 @@ export async function sealedSenderDecryptMessage(
   sessionStore: SessionStore,
   identityStore: IdentityKeyStore,
   prekeyStore: PreKeyStore,
-  signedPrekeyStore: SignedPreKeyStore
+  signedPrekeyStore: SignedPreKeyStore,
+  kyberPrekeyStore: KyberPreKeyStore
 ): Promise<SealedSenderDecryptionResult> {
   const ssdr = await Native.SealedSender_DecryptMessage(
     message,
@@ -1432,7 +1619,8 @@ export async function sealedSenderDecryptMessage(
     sessionStore,
     identityStore,
     prekeyStore,
-    signedPrekeyStore
+    signedPrekeyStore,
+    kyberPrekeyStore
   );
   return SealedSenderDecryptionResult._fromNativeHandle(ssdr);
 }
@@ -1450,9 +1638,9 @@ export async function sealedSenderDecryptToUsmc(
 }
 
 export class Cds2Client {
-  readonly _nativeHandle: Native.Cds2ClientState;
+  readonly _nativeHandle: Native.SgxClientState;
 
-  private constructor(nativeHandle: Native.Cds2ClientState) {
+  private constructor(nativeHandle: Native.SgxClientState) {
     this._nativeHandle = nativeHandle;
   }
 
@@ -1471,19 +1659,19 @@ export class Cds2Client {
   }
 
   initialRequest(): Buffer {
-    return Native.Cds2ClientState_InitialRequest(this);
+    return Native.SgxClientState_InitialRequest(this);
   }
 
   completeHandshake(buffer: Buffer): void {
-    return Native.Cds2ClientState_CompleteHandshake(this, buffer);
+    return Native.SgxClientState_CompleteHandshake(this, buffer);
   }
 
   establishedSend(buffer: Buffer): Buffer {
-    return Native.Cds2ClientState_EstablishedSend(this, buffer);
+    return Native.SgxClientState_EstablishedSend(this, buffer);
   }
 
   establishedRecv(buffer: Buffer): Buffer {
-    return Native.Cds2ClientState_EstablishedRecv(this, buffer);
+    return Native.SgxClientState_EstablishedRecv(this, buffer);
   }
 }
 
@@ -1586,7 +1774,7 @@ export function initLogger(
             'signal-client',
             'index.ts',
             0,
-            'unknown log level ' + nativeLevel + '; treating as error'
+            `unknown log level ${nativeLevel}; treating as error`
           );
           level = LogLevel.Error;
           break;

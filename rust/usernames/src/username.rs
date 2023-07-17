@@ -234,11 +234,23 @@ fn to_base_37_scalar(bytes: &[u8]) -> Scalar {
 fn validate_discriminator<T: FromStr + PartialOrd + From<u8>>(
     discriminator: &str,
 ) -> Result<T, UsernameError> {
+    if discriminator.is_empty() {
+        return Err(UsernameError::BadDiscriminator);
+    }
+    let first_ascii_char = discriminator.as_bytes()[0];
+    if !first_ascii_char.is_ascii_digit() {
+        // "+123" is allowed by Rust u*::from_str, but not by us.
+        return Err(UsernameError::BadDiscriminator);
+    }
+
     let n = T::from_str(discriminator).unwrap_or_else(|_| T::from(0));
     if n == T::from(0) {
         return Err(UsernameError::BadDiscriminator);
     }
     if n < T::from(10) && discriminator.len() != 2 {
+        return Err(UsernameError::BadDiscriminator);
+    }
+    if n >= T::from(10) && !(b'1'..=b'9').contains(&first_ascii_char) {
         return Err(UsernameError::BadDiscriminator);
     }
     Ok(n)
@@ -266,16 +278,26 @@ fn validate_prefix(s: &str) -> Result<(), UsernameError> {
 
 fn random_discriminators<R: Rng>(
     rng: &mut R,
-    count_per_range: &[u8],
-    ranges: &[Range<u32>],
-) -> Result<Vec<u32>, UsernameError> {
+    count_per_range: &[usize],
+    ranges: &[Range<usize>],
+) -> Result<Vec<usize>, UsernameError> {
     assert!(count_per_range.len() <= ranges.len(), "Not enough ranges");
-    let total_count: u8 = count_per_range.iter().sum();
-    let mut results = Vec::with_capacity(total_count as usize);
+    let total_count: usize = count_per_range.iter().sum();
+    let mut results = Vec::with_capacity(total_count);
     for (n, range) in count_per_range.iter().zip(ranges) {
-        results.extend((0..*n).map(|_| rng.gen_range(range.start, range.end)));
+        results.extend(gen_range(rng, range, *n));
     }
     Ok(results)
+}
+
+fn gen_range<'a, R: Rng>(
+    rng: &mut R,
+    range: &'a Range<usize>,
+    amount: usize,
+) -> impl Iterator<Item = usize> + 'a {
+    let length = range.end - range.start;
+    let indices = rand::seq::index::sample(rng, length, amount);
+    indices.into_iter().map(move |i| range.start + i)
 }
 
 #[cfg(test)]
@@ -300,17 +322,23 @@ mod test {
             Username::new(username).map(|name| name.hash()).unwrap();
         }
     }
+
     #[test]
     fn invalid_usernames() {
         for username in [
             "no_discriminator",
+            "no_discriminator.",
             "🦀.42",
             "s p a c e s.01",
             "zero.00",
             "zeropad.001",
+            "zeropad.0123",
             "short.1",
             "short_zero.0",
             "0start.01",
+            "plus.+1",
+            "plus.+01",
+            "plus.+123",
         ] {
             assert!(
                 Username::new(username).map(|n| n.hash()).is_err(),
@@ -402,7 +430,7 @@ mod test {
     #[should_panic]
     fn too_few_ranges() {
         let mut rng = rand::thread_rng();
-        let counts: Vec<u8> = (0u8..DISCRIMINATOR_RANGES.len() as u8 + 1).collect();
+        let counts: Vec<usize> = (0usize..DISCRIMINATOR_RANGES.len() + 1).collect();
         let _ = random_discriminators(&mut rng, &counts, &DISCRIMINATOR_RANGES);
     }
 

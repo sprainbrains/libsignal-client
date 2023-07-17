@@ -5,9 +5,13 @@
 
 package org.signal.libsignal.usernames;
 
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import junit.framework.TestCase;
 import org.signal.libsignal.protocol.util.Hex;
 
+import java.security.SecureRandom;
 import java.util.List;
 
 public class UsernamesTest extends TestCase {
@@ -52,11 +56,14 @@ public class UsernamesTest extends TestCase {
 
     public void testInvalidHash() throws BaseUsernameException {
         Username username = new Username("hello_signal.42");
-        byte[] hash = username.getHash();
         byte[] proof = username.generateProof();
-        hash[0] = 0;
+
+        SecureRandom r = new SecureRandom();
+        byte[] badHash = new byte[32];
+        r.nextBytes(badHash);
+
         try {
-            Username.verifyProof(proof, hash);
+            Username.verifyProof(proof, badHash);
         } catch (BaseUsernameException ex) {
             assertTrue(ex.getMessage().contains("Username could not be verified"));
         }
@@ -90,4 +97,44 @@ public class UsernamesTest extends TestCase {
         }
     }
 
+    public void testUsernameLinkHappyCase() throws BaseUsernameException {
+        final Username expectedUsername = new Username("hello_signal.42");
+        final Username.UsernameLink link = expectedUsername.generateLink();
+        final Username actualUsername = Username.fromLink(link);
+        assertEquals(expectedUsername.getUsername(), actualUsername.getUsername());
+    }
+
+    public void testCreateLinkFailsForLongUsername() throws BaseUsernameException {
+        final String longUsername = Stream.generate(() -> "a")
+            .limit(128)
+            .collect(Collectors.joining());
+        try {
+            new Username(longUsername).generateLink();
+            fail("Expected to fail creating a link for a long username");
+        } catch (BaseUsernameException ex) {
+            // this is fine
+        }
+    }
+
+    public void testDecryptUsernameFromLinkFailsForInvalidEntropySize() throws BaseUsernameException {
+        final byte[] entropy = new byte[16];
+        final byte[] encryptedUsername = new byte[32];
+        try {
+            Username.fromLink(new Username.UsernameLink(entropy, encryptedUsername));
+            fail("Expected to fail decrypting username link with an invalid entropy size");
+        } catch (BaseUsernameException ex) {
+            // this is fine
+        }
+    }
+
+    public void testDecryptUsernameFromLinkFailsForInvalidEncryptedUsername() throws BaseUsernameException {
+        final byte[] entropy = new byte[32];
+        final byte[] encryptedUsername = new byte[32];
+        try {
+            Username.fromLink(new Username.UsernameLink(entropy, encryptedUsername));
+            fail("Expected to fail decrypting username link with an invalid link data");
+        } catch (BaseUsernameException ex) {
+            // this is fine
+        }
+    }
 }

@@ -268,7 +268,7 @@ fn data_for_field<'a>(field: SgxEndorsementField, offsets: &[usize], data: &'a [
 }
 
 #[derive(Debug)]
-#[repr(C, packed)]
+#[repr(C)]
 pub(crate) struct EndorsementsHeader {
     // include/openenclave/bits/attestation.h
     // oe_endorsements_t
@@ -285,6 +285,7 @@ pub(crate) struct EndorsementsHeader {
     num_elements: UInt32LE,
 }
 
+static_assertions::const_assert_eq!(1, std::mem::align_of::<EndorsementsHeader>());
 static_assertions::const_assert_eq!(16, std::mem::size_of::<EndorsementsHeader>());
 
 impl TryFrom<[u8; std::mem::size_of::<EndorsementsHeader>()]> for EndorsementsHeader {
@@ -297,10 +298,9 @@ impl TryFrom<[u8; std::mem::size_of::<EndorsementsHeader>()]> for EndorsementsHe
 
 #[cfg(test)]
 mod tests {
+    use crate::util::testio::read_test_file;
     use hex_literal::hex;
     use std::convert::{TryFrom, TryInto};
-    use std::fs;
-    use std::path::Path;
 
     use super::*;
 
@@ -369,10 +369,6 @@ mod tests {
             [7, 9, 3, 3, 255, 255, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             tcb_info.tcb_levels[0].tcb.components()
         );
-    }
-
-    fn read_test_file(path: &str) -> Vec<u8> {
-        fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)).expect("failed to read file")
     }
 }
 

@@ -17,12 +17,16 @@ device-transfer = { path = "../../device-transfer" }
 attest = { path = "../../attest" }
 zkgroup = { path = "../../zkgroup" }
 usernames = { path = "../../usernames" }
+signal-pin = { path = "../../pin" }
+signal-media = { path = "../../media", optional = true }
 libsignal-bridge-macros = { path = "macros" }
 aes-gcm-siv = "0.10.1"
 async-trait = "0.1.41"
 bincode = "1.0"
 futures-util = "0.3.7"
 hkdf = "0.11"
+hmac = "0.11.0"
+typenum = "1.12.0"
 log = "0.4"
 paste = "1.0"
 rand = "0.7.3"
@@ -32,15 +36,16 @@ sha2 = "0.9"
 static_assertions = "1.1"
 uuid = "1.1.2"
 
+bytemuck = { version = "1.13.0", optional = true }
 libc = { version = "0.2", optional = true }
 jni_crate = { version = "0.19", package = "jni", optional = true }
 neon = { version = "0.10.0", optional = true, default-features = false, features = ["napi-6", "promise-api"] }
-linkme = { version = "0.2.4", optional = true }
+linkme = { version = "0.3.9", optional = true }
 signal-neon-futures = { path = "../node/futures", optional = true }
 
 [features]
 default = ["armv8"]
 ffi = ["libc", "libsignal-bridge-macros/ffi"]
-jni = ["jni_crate", "libsignal-bridge-macros/jni"]
+jni = ["jni_crate", "libsignal-bridge-macros/jni", "bytemuck"]
 node = ["neon", "linkme", "signal-neon-futures", "libsignal-bridge-macros/node"]
 armv8 = ["aes-gcm-siv/armv8", "libsignal-protocol/armv8", "signal-crypto/armv8"]

@@ -8,18 +8,10 @@ import Foundation
 
 public struct DisplayableFingerprint {
     public let formatted: String
-
-    internal init(formatted: String) {
-        self.formatted = formatted
-    }
 }
 
 public struct ScannableFingerprint {
     public let encoding: [UInt8]
-
-    internal init(encoding: [UInt8]) {
-        self.encoding = encoding
-    }
 
     /// Returns `true` if this fingerprint matches the fingerprint encoding `other`, `false` if not.
     ///
@@ -78,7 +70,7 @@ public struct NumericFingerprintGenerator {
         let displayable = DisplayableFingerprint(formatted: fprintStr)
 
         let scannableBits = try invokeFnReturningArray {
-            signal_fingerprint_scannable_encoding($0, $1, obj)
+            signal_fingerprint_scannable_encoding($0, obj)
         }
         let scannable = ScannableFingerprint(encoding: scannableBits)
         try checkError(signal_fingerprint_destroy(obj))

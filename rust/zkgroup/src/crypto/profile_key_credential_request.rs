@@ -7,8 +7,7 @@
 
 use crate::common::sho::*;
 use crate::crypto::credentials::{
-    BlindedExpiringProfileKeyCredential, BlindedPniCredential, BlindedProfileKeyCredential,
-    ExpiringProfileKeyCredential, PniCredential, ProfileKeyCredential,
+    BlindedExpiringProfileKeyCredential, ExpiringProfileKeyCredential,
 };
 use crate::crypto::profile_key_struct;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
@@ -82,18 +81,6 @@ impl KeyPair {
         }
     }
 
-    pub fn decrypt_blinded_profile_key_credential(
-        &self,
-        blinded_profile_key_credential: BlindedProfileKeyCredential,
-    ) -> ProfileKeyCredential {
-        let V = blinded_profile_key_credential.S2 - self.y * blinded_profile_key_credential.S1;
-        ProfileKeyCredential {
-            t: blinded_profile_key_credential.t,
-            U: blinded_profile_key_credential.U,
-            V,
-        }
-    }
-
     pub fn decrypt_blinded_expiring_profile_key_credential(
         &self,
         blinded_expiring_profile_key_credential: BlindedExpiringProfileKeyCredential,
@@ -103,18 +90,6 @@ impl KeyPair {
         ExpiringProfileKeyCredential {
             t: blinded_expiring_profile_key_credential.t,
             U: blinded_expiring_profile_key_credential.U,
-            V,
-        }
-    }
-
-    pub fn decrypt_blinded_pni_credential(
-        &self,
-        blinded_pni_credential: BlindedPniCredential,
-    ) -> PniCredential {
-        let V = blinded_pni_credential.S2 - self.y * blinded_pni_credential.S1;
-        PniCredential {
-            t: blinded_pni_credential.t,
-            U: blinded_pni_credential.U,
             V,
         }
     }

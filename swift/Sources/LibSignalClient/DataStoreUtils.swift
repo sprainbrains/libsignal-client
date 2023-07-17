@@ -13,36 +13,6 @@ extension StoreContext {
     }
 }
 
-/// Wraps a store while providing a place to hang on to any user-thrown errors.
-private struct ErrorHandlingContext<Store> {
-    var store: Store
-    var error: Error? = nil
-
-    init(_ store: Store) {
-        self.store = store
-    }
-
-    mutating func catchCallbackErrors(_ body: (Store) throws -> Int32) -> Int32 {
-        do {
-            return try body(self.store)
-        } catch {
-            self.error = error
-            return -1
-        }
-    }
-}
-
-private func rethrowCallbackErrors<Store, Result>(_ store: Store, _ body: (UnsafeMutablePointer<ErrorHandlingContext<Store>>) throws -> Result) rethrows -> Result {
-    var context = ErrorHandlingContext(store)
-    do {
-        return try withUnsafeMutablePointer(to: &context) {
-            try body($0)
-        }
-    } catch SignalError.callbackError(_) where context.error != nil {
-        throw context.error!
-    }
-}
-
 internal func withIdentityKeyStore<Result>(_ store: IdentityKeyStore, _ body: (UnsafePointer<SignalIdentityKeyStore>) throws -> Result) throws -> Result {
     func ffiShimGetIdentityKeyPair(store_ctx: UnsafeMutableRawPointer?,
                                    keyp: UnsafeMutablePointer<OpaquePointer?>?,
@@ -122,9 +92,9 @@ internal func withIdentityKeyStore<Result>(_ store: IdentityKeyStore, _ body: (U
             defer { cloneOrForgetAsNeeded(&public_key) }
             let direction: Direction
             switch SignalDirection(raw_direction) {
-            case SignalDirection_Sending:
+            case SignalDirectionSending:
                 direction = .sending
-            case SignalDirection_Receiving:
+            case SignalDirectionReceiving:
                 direction = .receiving
             default:
                 assertionFailure("unexpected direction value")
@@ -230,6 +200,55 @@ internal func withSignedPreKeyStore<Result>(_ store: SignedPreKeyStore, _ body: 
             ctx: $0,
             load_signed_pre_key: ffiShimLoadSignedPreKey,
             store_signed_pre_key: ffiShimStoreSignedPreKey)
+        return try body(&ffiStore)
+    }
+}
+
+internal func withKyberPreKeyStore<Result>(_ store: KyberPreKeyStore, _ body: (UnsafePointer<SignalKyberPreKeyStore>) throws -> Result) throws -> Result {
+    func ffiShimStoreKyberPreKey(store_ctx: UnsafeMutableRawPointer?,
+                                 id: UInt32,
+                                 record: OpaquePointer?,
+                                 ctx: UnsafeMutableRawPointer?) -> Int32 {
+        let storeContext = store_ctx!.assumingMemoryBound(to: ErrorHandlingContext<KyberPreKeyStore>.self)
+        return storeContext.pointee.catchCallbackErrors { store in
+            let context = ctx!.assumingMemoryBound(to: StoreContext.self).pointee
+            var record = KyberPreKeyRecord(borrowing: record)
+            defer { cloneOrForgetAsNeeded(&record) }
+            try store.storeKyberPreKey(record, id: id, context: context)
+            return 0
+        }
+    }
+
+    func ffiShimLoadKyberPreKey(store_ctx: UnsafeMutableRawPointer?,
+                                recordp: UnsafeMutablePointer<OpaquePointer?>?,
+                                id: UInt32,
+                                ctx: UnsafeMutableRawPointer?) -> Int32 {
+        let storeContext = store_ctx!.assumingMemoryBound(to: ErrorHandlingContext<KyberPreKeyStore>.self)
+        return storeContext.pointee.catchCallbackErrors { store in
+            let context = ctx!.assumingMemoryBound(to: StoreContext.self).pointee
+            var record = try store.loadKyberPreKey(id: id, context: context)
+            recordp!.pointee = try cloneOrTakeHandle(from: &record)
+            return 0
+        }
+    }
+
+    func ffiShimMarkKyberPreKeyUsed(store_ctx: UnsafeMutableRawPointer?,
+                                    id: UInt32,
+                                    ctx: UnsafeMutableRawPointer?) -> Int32 {
+        let storeContext = store_ctx!.assumingMemoryBound(to: ErrorHandlingContext<KyberPreKeyStore>.self)
+        return storeContext.pointee.catchCallbackErrors { store in
+            let context = ctx!.assumingMemoryBound(to: StoreContext.self).pointee
+            try store.markKyberPreKeyUsed(id: id, context: context)
+            return 0
+        }
+    }
+
+    return try rethrowCallbackErrors(store) {
+        var ffiStore = SignalKyberPreKeyStore(
+            ctx: $0,
+            load_kyber_pre_key: ffiShimLoadKyberPreKey,
+            store_kyber_pre_key: ffiShimStoreKyberPreKey,
+            mark_kyber_pre_key_used: ffiShimMarkKyberPreKeyUsed)
         return try body(&ffiStore)
     }
 }
