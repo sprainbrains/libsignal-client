@@ -293,8 +293,9 @@ impl<'a> PresentationProofBuilder<'a> {
     /// `message`, however, is not an attribute and is not part of the original credential; it is
     /// merely part of the proof. This could, for example, be used to distinguish multiple proofs
     /// that present the same kind of credential.
+    #[allow(unused_variables)]
     pub fn with_authenticated_message(label: &[u8], message: &'a [u8]) -> Self {
-        _ = label;
+        // _ = label;
         Self {
             core: PresentationProofBuilderCore::with_authenticated_message(message),
         }
@@ -302,8 +303,9 @@ impl<'a> PresentationProofBuilder<'a> {
 
     /// Unnecessary: public attributes are passed directly to the verifying server.
     #[deprecated = "Unnecessary: public attributes are passed directly to the verifying server."]
+    #[allow(unused_variables)]
     pub fn add_public_attribute(self, attr: &dyn PublicAttribute) -> Self {
-        _ = attr;
+        // _ = attr;
         self
     }
 
@@ -322,9 +324,10 @@ impl<'a> PresentationProofBuilder<'a> {
     /// attribute.
     ///
     /// This is order-sensitive.
+    #[allow(unused_variables)]
     pub fn add_revealed_attribute(mut self, attr: &dyn RevealedAttribute) -> Self {
         // We don't actually need the value! The server will check it for us.
-        _ = attr;
+        // _ = attr;
         self.core.add_attribute(&[RistrettoPoint::identity()], None);
         self
     }
