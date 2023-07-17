@@ -39,8 +39,14 @@
 #![warn(missing_docs)]
 
 /// A zkcredential operation failed to verify.
-#[derive(Debug, displaydoc::Display)]
+#[derive(Debug)]
 pub struct VerificationFailure;
+
+impl std::fmt::Display for VerificationFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "A zkcredential operation failed to verify.")
+    }
+}
 
 /// A reasonable size of entropy to request for operations.
 ///
