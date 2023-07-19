@@ -11,7 +11,10 @@ fn main() {
         "src/proto/storage.proto",
         "src/proto/wire.proto",
     ];
-    prost_build::compile_protos(&protos, &["src"]).expect("Protobufs in src are valid");
+    prost_build::Config::new()
+        .protoc_argument("--experimental_allow_proto3_optional")
+        .compile_protos(&protos, &["src"])
+        .expect("Protobufs in src are valid");
     for proto in &protos {
         println!("cargo:rerun-if-changed={}", proto);
     }
