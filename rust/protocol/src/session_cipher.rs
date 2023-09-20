@@ -3,16 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+use std::time::SystemTime;
+
 use rand::{CryptoRng, Rng};
 
-use crate::consts::MAX_FORWARD_JUMPS;
+use crate::consts::{MAX_FORWARD_JUMPS, MAX_UNACKNOWLEDGED_SESSION_AGE};
 use crate::ratchet::{ChainKey, MessageKeys};
 use crate::state::{InvalidSessionError, SessionState};
 use crate::{
-    session, CiphertextMessage, CiphertextMessageType, Context, Direction, IdentityKeyStore,
-    KeyPair, KyberPayload, KyberPreKeyStore, PreKeySignalMessage, PreKeyStore, ProtocolAddress,
-    PublicKey, Result, SessionRecord, SessionStore, SignalMessage, SignalProtocolError,
-    SignedPreKeyStore,
+    session, CiphertextMessage, CiphertextMessageType, Direction, IdentityKeyStore, KeyPair,
+    KyberPayload, KyberPreKeyStore, PreKeySignalMessage, PreKeyStore, ProtocolAddress, PublicKey,
+    Result, SessionRecord, SessionStore, SignalMessage, SignalProtocolError, SignedPreKeyStore,
 };
 
 pub async fn message_encrypt(
@@ -20,10 +21,10 @@ pub async fn message_encrypt(
     remote_address: &ProtocolAddress,
     session_store: &mut dyn SessionStore,
     identity_store: &mut dyn IdentityKeyStore,
-    ctx: Context,
+    now: SystemTime,
 ) -> Result<CiphertextMessage> {
     let mut session_record = session_store
-        .load_session(remote_address, ctx)
+        .load_session(remote_address)
         .await?
         .ok_or_else(|| SignalProtocolError::SessionNotFound(remote_address.clone()))?;
     let session_state = session_record
@@ -54,6 +55,19 @@ pub async fn message_encrypt(
             })?;
 
     let message = if let Some(items) = session_state.unacknowledged_pre_key_message_items()? {
+        if items.timestamp() + MAX_UNACKNOWLEDGED_SESSION_AGE < now {
+            log::warn!(
+                "stale unacknowledged session for {} (created at {})",
+                remote_address,
+                items
+                    .timestamp()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs()
+            );
+            return Err(SignalProtocolError::SessionNotFound(remote_address.clone()));
+        }
+
         let local_registration_id = session_state.local_registration_id();
 
         log::info!(
@@ -107,7 +121,7 @@ pub async fn message_encrypt(
 
     // XXX why is this check after everything else?!!
     if !identity_store
-        .is_trusted_identity(remote_address, &their_identity_key, Direction::Sending, ctx)
+        .is_trusted_identity(remote_address, &their_identity_key, Direction::Sending)
         .await?
     {
         log::warn!(
@@ -125,11 +139,11 @@ pub async fn message_encrypt(
 
     // XXX this could be combined with the above call to the identity store (in a new API)
     identity_store
-        .save_identity(remote_address, &their_identity_key, ctx)
+        .save_identity(remote_address, &their_identity_key)
         .await?;
 
     session_store
-        .store_session(remote_address, &session_record, ctx)
+        .store_session(remote_address, &session_record)
         .await?;
     Ok(message)
 }
@@ -144,19 +158,10 @@ pub async fn message_decrypt<R: Rng + CryptoRng>(
     signed_pre_key_store: &mut dyn SignedPreKeyStore,
     kyber_pre_key_store: &mut dyn KyberPreKeyStore,
     csprng: &mut R,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
     match ciphertext {
         CiphertextMessage::SignalMessage(m) => {
-            message_decrypt_signal(
-                m,
-                remote_address,
-                session_store,
-                identity_store,
-                csprng,
-                ctx,
-            )
-            .await
+            message_decrypt_signal(m, remote_address, session_store, identity_store, csprng).await
         }
         CiphertextMessage::PreKeySignalMessage(m) => {
             message_decrypt_prekey(
@@ -168,7 +173,6 @@ pub async fn message_decrypt<R: Rng + CryptoRng>(
                 signed_pre_key_store,
                 kyber_pre_key_store,
                 csprng,
-                ctx,
             )
             .await
         }
@@ -189,10 +193,9 @@ pub async fn message_decrypt_prekey<R: Rng + CryptoRng>(
     signed_pre_key_store: &mut dyn SignedPreKeyStore,
     kyber_pre_key_store: &mut dyn KyberPreKeyStore,
     csprng: &mut R,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
     let mut session_record = session_store
-        .load_session(remote_address, ctx)
+        .load_session(remote_address)
         .await?
         .unwrap_or_else(SessionRecord::new_fresh);
 
@@ -205,7 +208,6 @@ pub async fn message_decrypt_prekey<R: Rng + CryptoRng>(
         pre_key_store,
         signed_pre_key_store,
         kyber_pre_key_store,
-        ctx,
     )
     .await;
 
@@ -236,16 +238,16 @@ pub async fn message_decrypt_prekey<R: Rng + CryptoRng>(
     )?;
 
     session_store
-        .store_session(remote_address, &session_record, ctx)
+        .store_session(remote_address, &session_record)
         .await?;
 
     if let Some(pre_key_id) = pre_key_used.pre_key_id {
-        pre_key_store.remove_pre_key(pre_key_id, ctx).await?;
+        pre_key_store.remove_pre_key(pre_key_id).await?;
     }
 
     if let Some(kyber_pre_key_id) = pre_key_used.kyber_pre_key_id {
         kyber_pre_key_store
-            .mark_kyber_pre_key_used(kyber_pre_key_id, ctx)
+            .mark_kyber_pre_key_used(kyber_pre_key_id)
             .await?;
     }
 
@@ -258,10 +260,9 @@ pub async fn message_decrypt_signal<R: Rng + CryptoRng>(
     session_store: &mut dyn SessionStore,
     identity_store: &mut dyn IdentityKeyStore,
     csprng: &mut R,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
     let mut session_record = session_store
-        .load_session(remote_address, ctx)
+        .load_session(remote_address)
         .await?
         .ok_or_else(|| SignalProtocolError::SessionNotFound(remote_address.clone()))?;
 
@@ -282,12 +283,7 @@ pub async fn message_decrypt_signal<R: Rng + CryptoRng>(
         .expect("successfully decrypted; must have a remote identity key");
 
     if !identity_store
-        .is_trusted_identity(
-            remote_address,
-            &their_identity_key,
-            Direction::Receiving,
-            ctx,
-        )
+        .is_trusted_identity(remote_address, &their_identity_key, Direction::Receiving)
         .await?
     {
         log::warn!(
@@ -304,11 +300,11 @@ pub async fn message_decrypt_signal<R: Rng + CryptoRng>(
     }
 
     identity_store
-        .save_identity(remote_address, &their_identity_key, ctx)
+        .save_identity(remote_address, &their_identity_key)
         .await?;
 
     session_store
-        .store_session(remote_address, &session_record, ctx)
+        .store_session(remote_address, &session_record)
         .await?;
 
     Ok(ptext)
@@ -567,12 +563,13 @@ fn decrypt_message_with_state<R: Rng + CryptoRng>(
     remote_address: &ProtocolAddress,
     csprng: &mut R,
 ) -> Result<Vec<u8>> {
-    if !state.has_sender_chain()? {
-        return Err(SignalProtocolError::InvalidMessage(
+    // Check for a completely empty or invalid session state before we do anything else.
+    let _ = state.root_key().map_err(|_| {
+        SignalProtocolError::InvalidMessage(
             original_message_type,
             "No session available to decrypt",
-        ));
-    }
+        )
+    })?;
 
     let ciphertext_version = ciphertext.message_version() as u32;
     if ciphertext_version != state.session_version()? {

@@ -332,19 +332,6 @@ macro_rules! store {
     };
 }
 
-impl<'a> SimpleArgTypeInfo<'a> for Context {
-    type ArgType = JObject<'a>;
-    fn convert_from(_env: &JNIEnv, foreign: JObject<'a>) -> SignalJniResult<Self> {
-        if foreign.is_null() {
-            Ok(None)
-        } else {
-            Err(SignalJniError::BadJniParameter(
-                "<context> (only 'null' contexts are supported)",
-            ))
-        }
-    }
-}
-
 store!(IdentityKeyStore);
 store!(PreKeyStore);
 store!(SenderKeyStore);
@@ -967,6 +954,18 @@ impl ResultTypeInfo for ServiceId {
     }
 }
 
+impl ResultTypeInfo for Aci {
+    type ResultType = jbyteArray;
+    fn convert_into(self, env: &JNIEnv) -> SignalJniResult<Self::ResultType> {
+        ServiceId::from(self).convert_into(env)
+    }
+    fn convert_into_jobject(signal_jni_result: &SignalJniResult<Self::ResultType>) -> JObject {
+        signal_jni_result
+            .as_ref()
+            .map_or(JObject::null(), |&jobj| JObject::from(jobj))
+    }
+}
+
 impl<T> SimpleArgTypeInfo<'_> for Serialized<T>
 where
     T: FixedLengthBincodeSerializable + for<'a> serde::Deserialize<'a>,
@@ -1002,7 +1001,30 @@ impl SimpleArgTypeInfo<'_> for ServiceId {
             .and_then(|vec| vec.try_into().ok())
             .as_ref()
             .and_then(Self::parse_from_service_id_fixed_width_binary)
-            .ok_or_else(|| SignalJniError::Jni(jni::errors::Error::JavaException))
+            .ok_or_else(|| {
+                SignalProtocolError::InvalidArgument(
+                    "invalid Service-Id-FixedWidthBinary".to_string(),
+                )
+                .into()
+            })
+    }
+}
+
+impl SimpleArgTypeInfo<'_> for Aci {
+    type ArgType = jbyteArray;
+    fn convert_from(env: &JNIEnv, foreign: Self::ArgType) -> SignalJniResult<Self> {
+        ServiceId::convert_from(env, foreign)?
+            .try_into()
+            .map_err(|_| SignalProtocolError::InvalidArgument("not an ACI".to_string()).into())
+    }
+}
+
+impl SimpleArgTypeInfo<'_> for Pni {
+    type ArgType = jbyteArray;
+    fn convert_from(env: &JNIEnv, foreign: Self::ArgType) -> SignalJniResult<Self> {
+        ServiceId::convert_from(env, foreign)?
+            .try_into()
+            .map_err(|_| SignalProtocolError::InvalidArgument("not a PNI".to_string()).into())
     }
 }
 
@@ -1133,8 +1155,11 @@ macro_rules! jni_arg_type {
     (ServiceId) => {
         jni::jbyteArray
     };
-    (Context) => {
-        jni::JObject
+    (Aci) => {
+        jni::jbyteArray
+    };
+    (Pni) => {
+        jni::jbyteArray
     };
     (Timestamp) => {
         jni::jlong
@@ -1235,6 +1260,12 @@ macro_rules! jni_result_type {
         jni::jbyteArray
     };
     (ServiceId) => {
+        jni::jbyteArray
+    };
+    (Aci) => {
+        jni::jbyteArray
+    };
+    (Pni) => {
         jni::jbyteArray
     };
     (Option<$typ:tt>) => {

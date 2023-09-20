@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+use hmac::digest::{crypto_common, OutputSizeUser};
 use std::convert::TryInto;
 
-use hmac::{Hmac, NewMac};
-use sha2::digest::FixedOutput;
-use typenum::Unsigned;
+use crypto_common::KeyInit;
+use hmac::digest::typenum::Unsigned;
+use hmac::Hmac;
 
 use libsignal_bridge_macros::*;
 use libsignal_protocol::incremental_mac::{calculate_chunk_size, Incremental, Validating};
@@ -49,7 +50,7 @@ pub fn IncrementalMac_Update(
         .as_mut()
         .expect("MAC used after finalize")
         .update(&bytes[offset..offset + length])
-        .flat_map(|out| -> [u8; 32] { out.into_bytes().into() })
+        .flat_map(|out| -> [u8; 32] { out.into() })
         .collect()
 }
 
@@ -59,7 +60,7 @@ pub fn IncrementalMac_Finalize(mac: &mut IncrementalMac) -> Vec<u8> {
         .take()
         .expect("MAC used after finalize")
         .finalize()
-        .into_bytes()
+        .as_slice()
         .to_vec()
 }
 
@@ -73,7 +74,7 @@ pub fn ValidatingMac_Initialize(key: &[u8], chunk_size: u32, digests: &[u8]) -> 
     let hmac =
         Hmac::<Digest>::new_from_slice(key).expect("Should be able to create a new HMAC instance");
     let incremental = Incremental::new(hmac, chunk_size as usize);
-    let macs = digests.chunks(<Digest as FixedOutput>::OutputSize::USIZE);
+    let macs = digests.chunks(<Digest as OutputSizeUser>::OutputSize::USIZE);
     ValidatingMac(Some(incremental.validating(macs)))
 }
 
@@ -83,34 +84,30 @@ pub fn ValidatingMac_Update(
     bytes: &[u8],
     offset: u32,
     length: u32,
-) -> bool {
+) -> i32 {
     let offset = offset as usize;
     let length = length as usize;
     mac.0
         .as_mut()
         .expect("MAC used after finalize")
         .update(&bytes[offset..][..length])
-        .is_ok()
+        .ok()
+        .and_then(|n| n.try_into().ok())
+        .unwrap_or(-1)
 }
 
 #[bridge_fn]
-pub fn ValidatingMac_Finalize(mac: &mut ValidatingMac) -> bool {
+pub fn ValidatingMac_Finalize(mac: &mut ValidatingMac) -> i32 {
     mac.0
         .take()
         .expect("MAC used after finalize")
         .finalize()
-        .is_ok()
+        .ok()
+        .and_then(|n| n.try_into().ok())
+        .unwrap_or(-1)
 }
 
 impl Drop for IncrementalMac {
-    fn drop(&mut self) {
-        if self.0.is_some() {
-            report_unexpected_drop()
-        }
-    }
-}
-
-impl Drop for ValidatingMac {
     fn drop(&mut self) {
         if self.0.is_some() {
             report_unexpected_drop()

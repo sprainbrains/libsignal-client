@@ -8,6 +8,7 @@ use libsignal_protocol::error::Result;
 use libsignal_protocol::*;
 use static_assertions::const_assert_eq;
 use std::convert::TryFrom;
+use std::time::{Duration, SystemTime};
 use uuid::Uuid;
 
 // Will be unused when building for Node only.
@@ -59,6 +60,10 @@ impl Timestamp {
 
     pub(crate) fn as_millis(self) -> u64 {
         self.0
+    }
+
+    fn as_millis_from_unix_epoch(self) -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_millis(self.as_millis())
     }
 }
 
@@ -939,11 +944,6 @@ fn SessionRecord_NewFresh() -> SessionRecord {
     SessionRecord::new_fresh()
 }
 
-#[bridge_fn(ffi = false, node = false)]
-fn SessionRecord_FromSingleSessionState(session_state: &[u8]) -> Result<SessionRecord> {
-    SessionRecord::from_single_session_state(session_state)
-}
-
 // For historical reasons Android assumes this function will return zero if there is no session state
 #[bridge_fn(ffi = false, node = false)]
 fn SessionRecord_GetSessionVersion(s: &SessionRecord) -> Result<u32> {
@@ -960,11 +960,14 @@ fn SessionRecord_ArchiveCurrentState(session_record: &mut SessionRecord) -> Resu
 }
 
 #[bridge_fn]
+fn SessionRecord_HasUsableSenderChain(s: &SessionRecord, now: Timestamp) -> Result<bool> {
+    s.has_usable_sender_chain(now.as_millis_from_unix_epoch())
+}
+
+#[bridge_fn]
 fn SessionRecord_CurrentRatchetKeyMatches(s: &SessionRecord, key: &PublicKey) -> Result<bool> {
     s.current_ratchet_key_matches(key)
 }
-
-bridge_get!(SessionRecord::has_current_session_state as HasCurrentState -> bool, jni = false);
 
 bridge_deserialize!(SessionRecord::deserialize);
 bridge_get!(SessionRecord::serialize as Serialize -> Vec<u8>);
@@ -981,7 +984,6 @@ bridge_get!(
 );
 bridge_get!(SessionRecord::local_registration_id -> u32);
 bridge_get!(SessionRecord::remote_registration_id -> u32);
-bridge_get!(SessionRecord::has_sender_chain as HasSenderChain -> bool, ffi = false, node = false);
 
 bridge_get!(SealedSenderDecryptionResult::sender_uuid -> String, ffi = false, jni = false);
 bridge_get!(SealedSenderDecryptionResult::sender_e164 -> Option<String>, ffi = false, jni = false);
@@ -1085,7 +1087,7 @@ async fn SessionBuilder_ProcessPreKeyBundle(
     protocol_address: &ProtocolAddress,
     session_store: &mut dyn SessionStore,
     identity_key_store: &mut dyn IdentityKeyStore,
-    ctx: Context,
+    now: Timestamp,
 ) -> Result<()> {
     let mut csprng = rand::rngs::OsRng;
     process_prekey_bundle(
@@ -1093,8 +1095,8 @@ async fn SessionBuilder_ProcessPreKeyBundle(
         session_store,
         identity_key_store,
         bundle,
+        now.as_millis_from_unix_epoch(),
         &mut csprng,
-        ctx,
     )
     .await
 }
@@ -1105,14 +1107,14 @@ async fn SessionCipher_EncryptMessage(
     protocol_address: &ProtocolAddress,
     session_store: &mut dyn SessionStore,
     identity_key_store: &mut dyn IdentityKeyStore,
-    ctx: Context,
+    now: Timestamp,
 ) -> Result<CiphertextMessage> {
     message_encrypt(
         ptext,
         protocol_address,
         session_store,
         identity_key_store,
-        ctx,
+        now.as_millis_from_unix_epoch(),
     )
     .await
 }
@@ -1123,7 +1125,6 @@ async fn SessionCipher_DecryptSignalMessage(
     protocol_address: &ProtocolAddress,
     session_store: &mut dyn SessionStore,
     identity_key_store: &mut dyn IdentityKeyStore,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
     let mut csprng = rand::rngs::OsRng;
     message_decrypt_signal(
@@ -1132,7 +1133,6 @@ async fn SessionCipher_DecryptSignalMessage(
         session_store,
         identity_key_store,
         &mut csprng,
-        ctx,
     )
     .await
 }
@@ -1146,7 +1146,6 @@ async fn SessionCipher_DecryptPreKeySignalMessage(
     prekey_store: &mut dyn PreKeyStore,
     signed_prekey_store: &mut dyn SignedPreKeyStore,
     kyber_prekey_store: &mut dyn KyberPreKeyStore,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
     let mut csprng = rand::rngs::OsRng;
     message_decrypt_prekey(
@@ -1158,7 +1157,6 @@ async fn SessionCipher_DecryptPreKeySignalMessage(
         signed_prekey_store,
         kyber_prekey_store,
         &mut csprng,
-        ctx,
     )
     .await
 }
@@ -1168,10 +1166,9 @@ async fn SealedSessionCipher_Encrypt(
     destination: &ProtocolAddress,
     content: &UnidentifiedSenderMessageContent,
     identity_key_store: &mut dyn IdentityKeyStore,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
     let mut rng = rand::rngs::OsRng;
-    sealed_sender_encrypt_from_usmc(destination, content, identity_key_store, ctx, &mut rng).await
+    sealed_sender_encrypt_from_usmc(destination, content, identity_key_store, &mut rng).await
 }
 
 #[bridge_fn(jni = "SealedSessionCipher_1MultiRecipientEncrypt", node = false)]
@@ -1180,7 +1177,6 @@ async fn SealedSender_MultiRecipientEncrypt(
     recipient_sessions: &[&SessionRecord],
     content: &UnidentifiedSenderMessageContent,
     identity_key_store: &mut dyn IdentityKeyStore,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
     let mut rng = rand::rngs::OsRng;
     sealed_sender_multi_recipient_encrypt(
@@ -1188,7 +1184,6 @@ async fn SealedSender_MultiRecipientEncrypt(
         recipient_sessions,
         content,
         identity_key_store,
-        ctx,
         &mut rng,
     )
     .await
@@ -1201,7 +1196,6 @@ async fn SealedSender_MultiRecipientEncryptNode(
     recipient_sessions: &[SessionRecord],
     content: &UnidentifiedSenderMessageContent,
     identity_key_store: &mut dyn IdentityKeyStore,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
     let mut rng = rand::rngs::OsRng;
     sealed_sender_multi_recipient_encrypt(
@@ -1209,7 +1203,6 @@ async fn SealedSender_MultiRecipientEncryptNode(
         &recipient_sessions.iter().collect::<Vec<&SessionRecord>>(),
         content,
         identity_key_store,
-        ctx,
         &mut rng,
     )
     .await
@@ -1230,9 +1223,8 @@ fn SealedSender_MultiRecipientMessageForSingleRecipient(
 async fn SealedSessionCipher_DecryptToUsmc(
     ctext: &[u8],
     identity_store: &mut dyn IdentityKeyStore,
-    ctx: Context,
 ) -> Result<UnidentifiedSenderMessageContent> {
-    sealed_sender_decrypt_to_usmc(ctext, identity_store, ctx).await
+    sealed_sender_decrypt_to_usmc(ctext, identity_store).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1262,7 +1254,6 @@ async fn SealedSender_DecryptMessage(
         prekey_store,
         signed_prekey_store,
         kyber_prekey_store,
-        None,
     )
     .await
 }
@@ -1272,10 +1263,9 @@ async fn SenderKeyDistributionMessage_Create(
     sender: &ProtocolAddress,
     distribution_id: Uuid,
     store: &mut dyn SenderKeyStore,
-    ctx: Context,
 ) -> Result<SenderKeyDistributionMessage> {
     let mut csprng = rand::rngs::OsRng;
-    create_sender_key_distribution_message(sender, distribution_id, store, &mut csprng, ctx).await
+    create_sender_key_distribution_message(sender, distribution_id, store, &mut csprng).await
 }
 
 #[bridge_fn_void(
@@ -1286,10 +1276,8 @@ async fn SenderKeyDistributionMessage_Process(
     sender: &ProtocolAddress,
     sender_key_distribution_message: &SenderKeyDistributionMessage,
     store: &mut dyn SenderKeyStore,
-    ctx: Context,
 ) -> Result<()> {
-    process_sender_key_distribution_message(sender, sender_key_distribution_message, store, ctx)
-        .await
+    process_sender_key_distribution_message(sender, sender_key_distribution_message, store).await
 }
 
 #[bridge_fn(ffi = "group_encrypt_message")]
@@ -1298,10 +1286,9 @@ async fn GroupCipher_EncryptMessage(
     distribution_id: Uuid,
     message: &[u8],
     store: &mut dyn SenderKeyStore,
-    ctx: Context,
 ) -> Result<CiphertextMessage> {
     let mut rng = rand::rngs::OsRng;
-    let ctext = group_encrypt(store, sender, distribution_id, message, &mut rng, ctx).await?;
+    let ctext = group_encrypt(store, sender, distribution_id, message, &mut rng).await?;
     Ok(CiphertextMessage::SenderKeyMessage(ctext))
 }
 
@@ -1310,7 +1297,6 @@ async fn GroupCipher_DecryptMessage(
     sender: &ProtocolAddress,
     message: &[u8],
     store: &mut dyn SenderKeyStore,
-    ctx: Context,
 ) -> Result<Vec<u8>> {
-    group_decrypt(message, store, sender, ctx).await
+    group_decrypt(message, store, sender).await
 }

@@ -358,6 +358,10 @@ describe('SignalClient', () => {
         );
         assert.instanceOf(aciServiceId, SignalClient.Aci);
         assert.deepEqual(aci, aciServiceId);
+
+        const _: SignalClient.Aci = SignalClient.Aci.parseFromServiceIdString(
+          aci.getServiceIdString()
+        );
       }
 
       {
@@ -366,6 +370,10 @@ describe('SignalClient', () => {
         );
         assert.instanceOf(aciServiceId, SignalClient.Aci);
         assert.deepEqual(aci, aciServiceId);
+
+        const _: SignalClient.Aci = SignalClient.Aci.parseFromServiceIdBinary(
+          aci.getServiceIdBinary()
+        );
       }
     });
     it('handles PNIs', () => {
@@ -392,6 +400,10 @@ describe('SignalClient', () => {
         );
         assert.instanceOf(pniServiceId, SignalClient.Pni);
         assert.deepEqual(pni, pniServiceId);
+
+        const _: SignalClient.Pni = SignalClient.Pni.parseFromServiceIdString(
+          pni.getServiceIdString()
+        );
       }
 
       {
@@ -400,6 +412,10 @@ describe('SignalClient', () => {
         );
         assert.instanceOf(pniServiceId, SignalClient.Pni);
         assert.deepEqual(pni, pniServiceId);
+
+        const _: SignalClient.Pni = SignalClient.Pni.parseFromServiceIdBinary(
+          pni.getServiceIdBinary()
+        );
       }
     });
     it('accepts the null UUID', () => {
@@ -412,10 +428,23 @@ describe('SignalClient', () => {
       assert.throws(() => SignalClient.ServiceId.parseFromServiceIdString(''));
     });
   });
-  it('ProtocolAddress', () => {
-    const addr = SignalClient.ProtocolAddress.new('name', 42);
-    assert.deepEqual(addr.name(), 'name');
-    assert.deepEqual(addr.deviceId(), 42);
+  describe('ProtocolAddress', () => {
+    it('can hold arbitrary data', () => {
+      const addr = SignalClient.ProtocolAddress.new('name', 42);
+      assert.deepEqual(addr.name(), 'name');
+      assert.deepEqual(addr.deviceId(), 42);
+    });
+    it('can round-trip ServiceIds', () => {
+      const newUuid = uuid.v4();
+      const aci = SignalClient.Aci.fromUuid(newUuid);
+      const pni = SignalClient.Pni.fromUuid(newUuid);
+
+      const aciAddr = SignalClient.ProtocolAddress.new(aci, 1);
+      const pniAddr = SignalClient.ProtocolAddress.new(pni, 1);
+      assert.notEqual(aciAddr.toString(), pniAddr.toString());
+      assert.isTrue(aciAddr.serviceId()?.isEqual(aci));
+      assert.isTrue(pniAddr.serviceId()?.isEqual(pni));
+    });
   });
   it('Fingerprint', () => {
     const aliceKey = SignalClient.PublicKey.deserialize(
@@ -521,6 +550,7 @@ describe('SignalClient', () => {
 
     assert.deepEqual(senderCert.serverCertificate(), serverCert);
     assert.deepEqual(senderCert.senderUuid(), senderUuid);
+    assert.deepEqual(senderCert.senderAci()?.getRawUuid(), senderUuid);
     assert.deepEqual(senderCert.senderE164(), senderE164);
     assert.deepEqual(senderCert.senderDeviceId(), senderDeviceId);
 
@@ -531,6 +561,25 @@ describe('SignalClient', () => {
 
     assert(senderCert.validate(trustRoot.getPublicKey(), expiration - 1000));
     assert(!senderCert.validate(trustRoot.getPublicKey(), expiration + 10)); // expired
+
+    const senderCertWithoutE164 = SignalClient.SenderCertificate.new(
+      senderUuid,
+      null,
+      senderDeviceId,
+      senderKey.getPublicKey(),
+      expiration,
+      serverCert,
+      serverKey
+    );
+
+    assert.deepEqual(senderCertWithoutE164.serverCertificate(), serverCert);
+    assert.deepEqual(senderCertWithoutE164.senderUuid(), senderUuid);
+    assert.deepEqual(
+      senderCertWithoutE164.senderAci()?.getRawUuid(),
+      senderUuid
+    );
+    assert.isNull(senderCertWithoutE164.senderE164());
+    assert.deepEqual(senderCertWithoutE164.senderDeviceId(), senderDeviceId);
   });
   it('SenderKeyMessage', () => {
     const distributionId = 'd1d1d1d1-7000-11eb-b32a-33b8a8a487a6';
@@ -1109,6 +1158,55 @@ describe('SignalClient', () => {
           assert.exists(err.stack); // Make sure we're still getting the benefits of Error.
         }
       });
+
+      it('expires unacknowledged sessions', async () => {
+        const aliceStores = new TestStores();
+        const bobStores = new TestStores();
+
+        const bAddress = SignalClient.ProtocolAddress.new('+19192222222', 1);
+
+        const bPreKeyBundle = await testCase.makeBundle(bAddress, bobStores);
+
+        await SignalClient.processPreKeyBundle(
+          bPreKeyBundle,
+          bAddress,
+          aliceStores.session,
+          aliceStores.identity,
+          new Date('2020-01-01')
+        );
+
+        const initialSession = await aliceStores.session.getSession(bAddress);
+        assert.isTrue(initialSession?.hasCurrentState(new Date('2020-01-01')));
+        assert.isFalse(initialSession?.hasCurrentState(new Date('2023-01-01')));
+
+        const aMessage = Buffer.from('Greetings hoo-man', 'utf8');
+        const aCiphertext = await SignalClient.signalEncrypt(
+          aMessage,
+          bAddress,
+          aliceStores.session,
+          aliceStores.identity,
+          new Date('2020-01-01')
+        );
+
+        assert.deepEqual(
+          aCiphertext.type(),
+          SignalClient.CiphertextMessageType.PreKey
+        );
+
+        const updatedSession = await aliceStores.session.getSession(bAddress);
+        assert.isTrue(updatedSession?.hasCurrentState(new Date('2020-01-01')));
+        assert.isFalse(updatedSession?.hasCurrentState(new Date('2023-01-01')));
+
+        await assert.isRejected(
+          SignalClient.signalEncrypt(
+            aMessage,
+            bAddress,
+            aliceStores.session,
+            aliceStores.identity,
+            new Date('2023-01-01')
+          )
+        );
+      });
     });
   }
 
@@ -1230,6 +1328,7 @@ describe('SignalClient', () => {
       assert.deepEqual(bPlaintext.message(), aPlaintext);
       assert.deepEqual(bPlaintext.senderE164(), aE164);
       assert.deepEqual(bPlaintext.senderUuid(), aUuid);
+      assert.deepEqual(bPlaintext.senderAci()?.getServiceIdString(), aUuid);
       assert.deepEqual(bPlaintext.deviceId(), aDeviceId);
 
       const innerMessage = await SignalClient.signalEncrypt(

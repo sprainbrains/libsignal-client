@@ -13,7 +13,7 @@ license = "AGPL-3.0-only"
 [dependencies]
 poksho = { path = "../poksho" }
 
-curve25519-dalek = { version = "3.0", features = ["serde"] }
+curve25519-dalek = { version = "4.0", features = ["serde"] }
 lazy_static = "1.4.0"
 serde = { version = "1", features = ["derive"] }
 

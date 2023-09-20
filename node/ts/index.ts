@@ -8,7 +8,7 @@ import * as uuid from 'uuid';
 import * as Errors from './Errors';
 export * from './Errors';
 
-import { ProtocolAddress } from './Address';
+import { Aci, ProtocolAddress } from './Address';
 export * from './Address';
 
 export * as usernames from './usernames';
@@ -748,8 +748,13 @@ export class SessionRecord {
     return Native.SessionRecord_GetRemoteRegistrationId(this);
   }
 
-  hasCurrentState(): boolean {
-    return Native.SessionRecord_HasCurrentState(this);
+  /**
+   * Returns whether the current session can be used to send messages.
+   *
+   * If there is no current session, returns false.
+   */
+  hasCurrentState(now: Date = new Date()): boolean {
+    return Native.SessionRecord_HasUsableSenderChain(this, now.getTime());
   }
 
   currentRatchetKeyMatches(key: PublicKey): boolean {
@@ -841,7 +846,7 @@ export class SenderCertificate {
   }
 
   static new(
-    senderUuid: string,
+    senderUuid: string | Aci,
     senderE164: string | null,
     senderDeviceId: number,
     senderKey: PublicKey,
@@ -849,6 +854,9 @@ export class SenderCertificate {
     signerCert: ServerCertificate,
     signerKey: PrivateKey
   ): SenderCertificate {
+    if (typeof senderUuid !== 'string') {
+      senderUuid = senderUuid.getServiceIdString();
+    }
     return new SenderCertificate(
       Native.SenderCertificate_New(
         senderUuid,
@@ -885,6 +893,18 @@ export class SenderCertificate {
   senderUuid(): string {
     return Native.SenderCertificate_GetSenderUuid(this);
   }
+  /**
+   * Returns an ACI if the sender is a valid UUID, `null` otherwise.
+   *
+   * In a future release SenderCertificate will *only* support ACIs.
+   */
+  senderAci(): Aci | null {
+    try {
+      return Aci.parseFromServiceIdString(this.senderUuid());
+    } catch {
+      return null;
+    }
+  }
   senderDeviceId(): number {
     return Native.SenderCertificate_GetDeviceId(this);
   }
@@ -916,8 +936,7 @@ export class SenderKeyDistributionMessage {
     const handle = await Native.SenderKeyDistributionMessage_Create(
       sender,
       Buffer.from(uuid.parse(distributionId) as Uint8Array),
-      store,
-      null
+      store
     );
     return new SenderKeyDistributionMessage(handle);
   }
@@ -976,12 +995,7 @@ export async function processSenderKeyDistributionMessage(
   message: SenderKeyDistributionMessage,
   store: SenderKeyStore
 ): Promise<void> {
-  await Native.SenderKeyDistributionMessage_Process(
-    sender,
-    message,
-    store,
-    null
-  );
+  await Native.SenderKeyDistributionMessage_Process(sender, message, store);
 }
 
 export class SenderKeyMessage {
@@ -1306,8 +1320,7 @@ export async function groupEncrypt(
       sender,
       Buffer.from(uuid.parse(distributionId) as Uint8Array),
       message,
-      store,
-      null
+      store
     )
   );
 }
@@ -1317,7 +1330,7 @@ export async function groupDecrypt(
   store: SenderKeyStore,
   message: Buffer
 ): Promise<Buffer> {
-  return Native.GroupCipher_DecryptMessage(sender, message, store, null);
+  return Native.GroupCipher_DecryptMessage(sender, message, store);
 }
 
 export class SealedSenderDecryptionResult {
@@ -1343,6 +1356,19 @@ export class SealedSenderDecryptionResult {
 
   senderUuid(): string {
     return Native.SealedSenderDecryptionResult_GetSenderUuid(this);
+  }
+
+  /**
+   * Returns an ACI if the sender is a valid UUID, `null` otherwise.
+   *
+   * In a future release SenderCertificate will *only* support ACIs.
+   */
+  senderAci(): Aci | null {
+    try {
+      return Aci.parseFromServiceIdString(this.senderUuid());
+    } catch {
+      return null;
+    }
   }
 
   deviceId(): number {
@@ -1479,14 +1505,15 @@ export function processPreKeyBundle(
   bundle: PreKeyBundle,
   address: ProtocolAddress,
   sessionStore: SessionStore,
-  identityStore: IdentityKeyStore
+  identityStore: IdentityKeyStore,
+  now: Date = new Date()
 ): Promise<void> {
   return Native.SessionBuilder_ProcessPreKeyBundle(
     bundle,
     address,
     sessionStore,
     identityStore,
-    null
+    now.getTime()
   );
 }
 
@@ -1494,7 +1521,8 @@ export async function signalEncrypt(
   message: Buffer,
   address: ProtocolAddress,
   sessionStore: SessionStore,
-  identityStore: IdentityKeyStore
+  identityStore: IdentityKeyStore,
+  now: Date = new Date()
 ): Promise<CiphertextMessage> {
   return CiphertextMessage._fromNativeHandle(
     await Native.SessionCipher_EncryptMessage(
@@ -1502,7 +1530,7 @@ export async function signalEncrypt(
       address,
       sessionStore,
       identityStore,
-      null
+      now.getTime()
     )
   );
 }
@@ -1517,8 +1545,7 @@ export function signalDecrypt(
     message,
     address,
     sessionStore,
-    identityStore,
-    null
+    identityStore
   );
 }
 
@@ -1538,8 +1565,7 @@ export function signalDecryptPreKey(
     identityStore,
     prekeyStore,
     signedPrekeyStore,
-    kyberPrekeyStore,
-    null
+    kyberPrekeyStore
   );
 }
 
@@ -1570,7 +1596,7 @@ export function sealedSenderEncrypt(
   address: ProtocolAddress,
   identityStore: IdentityKeyStore
 ): Promise<Buffer> {
-  return Native.SealedSender_Encrypt(address, content, identityStore, null);
+  return Native.SealedSender_Encrypt(address, content, identityStore);
 }
 
 export async function sealedSenderMultiRecipientEncrypt(
@@ -1584,8 +1610,7 @@ export async function sealedSenderMultiRecipientEncrypt(
     recipients,
     recipientSessions,
     content,
-    identityStore,
-    null
+    identityStore
   );
 }
 
@@ -1629,11 +1654,7 @@ export async function sealedSenderDecryptToUsmc(
   message: Buffer,
   identityStore: IdentityKeyStore
 ): Promise<UnidentifiedSenderMessageContent> {
-  const usmc = await Native.SealedSender_DecryptToUsmc(
-    message,
-    identityStore,
-    null
-  );
+  const usmc = await Native.SealedSender_DecryptToUsmc(message, identityStore);
   return UnidentifiedSenderMessageContent._fromNativeHandle(usmc);
 }
 

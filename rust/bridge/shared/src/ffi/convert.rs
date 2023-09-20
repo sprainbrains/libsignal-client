@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-use libc::{c_char, c_uchar, c_void};
+use libc::{c_char, c_uchar};
 use libsignal_protocol::*;
 use paste::paste;
 use std::convert::TryInto;
@@ -194,13 +194,6 @@ impl SimpleArgTypeInfo for Option<String> {
     }
 }
 
-impl SimpleArgTypeInfo for Context {
-    type ArgType = *mut c_void;
-    fn convert_from(foreign: *mut c_void) -> SignalFfiResult<Self> {
-        Ok(Some(foreign))
-    }
-}
-
 impl SimpleArgTypeInfo for uuid::Uuid {
     type ArgType = *const [u8; 16];
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -242,6 +235,31 @@ impl ResultTypeInfo for libsignal_protocol::ServiceId {
     type ResultType = libsignal_protocol::ServiceIdFixedWidthBinaryBytes;
     fn convert_into(self) -> SignalFfiResult<Self::ResultType> {
         Ok(self.service_id_fixed_width_binary())
+    }
+}
+
+impl SimpleArgTypeInfo for libsignal_protocol::Aci {
+    type ArgType = <libsignal_protocol::ServiceId as SimpleArgTypeInfo>::ArgType;
+    fn convert_from(foreign: Self::ArgType) -> SignalFfiResult<Self> {
+        libsignal_protocol::ServiceId::convert_from(foreign)?
+            .try_into()
+            .map_err(|_| SignalProtocolError::InvalidArgument("not an ACI".to_string()).into())
+    }
+}
+
+impl ResultTypeInfo for libsignal_protocol::Aci {
+    type ResultType = libsignal_protocol::ServiceIdFixedWidthBinaryBytes;
+    fn convert_into(self) -> SignalFfiResult<Self::ResultType> {
+        libsignal_protocol::ServiceId::from(self).convert_into()
+    }
+}
+
+impl SimpleArgTypeInfo for libsignal_protocol::Pni {
+    type ArgType = <libsignal_protocol::ServiceId as SimpleArgTypeInfo>::ArgType;
+    fn convert_from(foreign: Self::ArgType) -> SignalFfiResult<Self> {
+        libsignal_protocol::ServiceId::convert_from(foreign)?
+            .try_into()
+            .map_err(|_| SignalProtocolError::InvalidArgument("not a PNI".to_string()).into())
     }
 }
 
@@ -635,10 +653,11 @@ macro_rules! ffi_arg_type {
     (String) => (*const libc::c_char);
     (Option<String>) => (*const libc::c_char);
     (Option<&str>) => (*const libc::c_char);
-    (Context) => (*mut libc::c_void);
     (Timestamp) => (u64);
     (Uuid) => (*const [u8; 16]);
-    (ServiceId) => (*const [u8; 17]);
+    (ServiceId) => (*const libsignal_protocol::ServiceIdFixedWidthBinaryBytes);
+    (Aci) => (*const libsignal_protocol::ServiceIdFixedWidthBinaryBytes);
+    (Pni) => (*const libsignal_protocol::ServiceIdFixedWidthBinaryBytes);
     (&[u8; $len:expr]) => (*const [u8; $len]);
     (&[& $typ:ty]) => (ffi::BorrowedSliceOf<*const $typ>);
     (&mut dyn $typ:ty) => (*const paste!(ffi::[<Ffi $typ Struct>]));
@@ -679,7 +698,9 @@ macro_rules! ffi_result_type {
     (Option<$typ:ty>) => (*mut $typ);
     (Timestamp) => (u64);
     (Uuid) => ([u8; 16]);
-    (ServiceId) => ([u8; 17]);
+    (ServiceId) => (libsignal_protocol::ServiceIdFixedWidthBinaryBytes);
+    (Aci) => (libsignal_protocol::ServiceIdFixedWidthBinaryBytes);
+    (Pni) => (libsignal_protocol::ServiceIdFixedWidthBinaryBytes);
     ([u8; $len:expr]) => ([u8; $len]);
     (&[u8]) => (ffi::OwnedBufferOf<libc::c_uchar>);
     (Vec<u8>) => (ffi::OwnedBufferOf<libc::c_uchar>);
